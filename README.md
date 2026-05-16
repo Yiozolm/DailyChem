@@ -36,3 +36,4 @@ uv run ruff format .
 - `tests/` —— pytest 测试
 - `data/{raw,processed}/` —— 本地数据，默认不入库
 - `examples/{raw,expected_outputs}/` —— 样例输入与期望输出
+- `docs/` —— 项目文档占位骨架（详细规划在开发分支维护）
