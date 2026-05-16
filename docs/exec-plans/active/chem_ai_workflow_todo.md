@@ -25,7 +25,7 @@
 
 - [ ] 询问同学目前常用软件
 
-  - [ ] ChemDraw 版本 *(待同学稍后确认)*
+  - [x] ChemDraw 版本：**v20**
   - [X] 是否使用 MestReNova / Mnova
   - [X] 是否使用 Bruker / JEOL / Agilent 仪器数据
   - [ ] 是否有电子实验记录本
@@ -50,7 +50,7 @@
 ## 验收标准
 
 - [ ] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录
-- [ ] 明确第一版输入格式
+- [x] 明确第一版输入格式：**结构 = `.mol` / `.sdf` / SMILES（从 ChemDraw v20 导出，不收 `.cdx`）；NMR = peak list 文本**
 - [ ] 明确第一版输出格式
 - [ ] 明确用户最常用的文件命名方式
 
@@ -154,6 +154,12 @@ chemwf --help
 ## 目标
 
 支持用 SMILES / MOL / SDF 输入化合物结构，并生成标准化分子信息。
+
+## 输入格式约定
+
+第一版要求从 ChemDraw v20 导出为 `.mol` / `.sdf` / SMILES，**不直接解析 `.cdx` 二进制**。
+理由：v20 的 `.cdx` 是经典二进制格式，RDKit 原生只支持 CDXML；解析二进制 `.cdx` 需要引入 OpenBabel 或自写 reader，第一版不值得。
+后续若同学导出习惯只有 `.cdx`，再评估是否加 `.cdx → .mol` 的预处理工具。
 
 ## TODO
 
