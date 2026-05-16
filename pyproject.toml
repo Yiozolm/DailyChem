@@ -1,0 +1,39 @@
+[project]
+name = "chem-ai-workflow"
+version = "0.0.1"
+description = "化学工作流自动化：结构、谱图、实验记录的半自动工具集"
+requires-python = ">=3.11"
+dependencies = [
+    "rdkit>=2024.3.1",
+    "pandas>=2.2",
+    "pydantic>=2.7",
+    "typer>=0.12",
+    "streamlit>=1.35",
+]
+
+[project.scripts]
+chemwf = "chem_workflow.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/chem_workflow"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
