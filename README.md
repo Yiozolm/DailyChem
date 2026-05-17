@@ -19,6 +19,15 @@ uv run chemwf --help
 uv run chemwf version
 ```
 
+### NMR peak list 格式化
+
+第一版接收 MestReNova `View → Tables → Multiplets` 复制出来的 tab-separated 文本：
+
+```bash
+uv run chemwf nmr parse examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
+uv run chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
+```
+
 ## 测试
 
 ```bash

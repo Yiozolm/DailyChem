@@ -334,41 +334,53 @@ class NMRSpectrum:
 
 ## TODO
 
-- [ ] 实现 1H NMR formatter
+- [x] 实现 1H NMR formatter
 
-  - [ ] shift
-  - [ ] multiplicity
-  - [ ] J values
-  - [ ] integration
-  - [ ] assignment 可选
-- [ ] 实现 13C NMR formatter
+  - [x] shift
+  - [x] multiplicity
+  - [x] J values
+  - [x] integration
+  - [x] assignment 可选
+- [x] 实现 13C NMR formatter
 
-  - [ ] shift 列表
-  - [ ] solvent
-  - [ ] frequency
-- [ ] 支持配置输出风格
+  - [x] shift 列表
+  - [x] solvent
+  - [x] frequency
+- [x] 支持配置输出风格
 
-  - [ ] 是否保留 assignment
-  - [ ] 是否按 shift 从高到低排序
-  - [ ] 是否显示 solvent
-  - [ ] 是否显示 frequency
-- [ ] 添加命令行接口
+  - [x] 是否保留 assignment
+  - [x] 是否按 shift 从高到低排序
+  - [x] 是否显示 solvent
+  - [x] 是否显示 frequency
+- [x] 添加命令行接口
 
 ```bash
-chemwf nmr format --input peaks.csv --nucleus 1H --frequency 400 --solvent CDCl3
+chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --nucleus 1H --frequency 400 --solvent CDCl3
 ```
 
 ## 验收标准
 
-- [ ] 输入 CSV 可以生成规范 NMR 文本
-- [ ] 1H 和 13C 分别支持
-- [ ] 输出格式与样例实验记录基本一致
-- [ ] 至少有 10 个 formatter 单元测试
+- [x] 输入 MestReNova multiplet 表可以生成规范 NMR 文本
+- [x] 1H 和 13C 分别支持
+- [x] 输出格式与样例实验记录基本一致
+- [x] 至少有 10 个 formatter 单元测试（实际 14 个）
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/nmr.py`
-- [ ] `examples/processed/nmr_report.txt`
+- [x] `src/chem_workflow/nmr_formatter.py`
+- [x] `src/chem_workflow/cli.py`（新增 `chemwf nmr format`）
+- [x] `tests/test_nmr_formatter.py`
+- [x] `examples/processed/nmr_report.txt`
+
+## 实施备注（2026-05-17）
+
+- Formatter 独立放在 `src/chem_workflow/nmr_formatter.py`，避免继续扩大已有 `nmr.py`；`nmr.py` 仍专注数据模型与 MestReNova multiplet 表解析。
+- CLI 新增 `chemwf nmr format`，输入与 Phase 3 保持一致：支持文件路径或 `--inline` 文本，输出默认到 stdout，也可用 `--out` 写文件。
+- 默认按 shift 从高到低排序；可用 `--preserve-order` 保留输入顺序。
+- 默认隐藏 assignment，因为当前 assignment 多为 MestReNova 字母 ID；需要时可用 `--include-assignment` 显示。
+- 默认输出 `frequency` 与 `solvent`；可用 `--hide-frequency` / `--hide-solvent` 隐藏。
+- 已生成示例：`examples/processed/nmr_report.txt`。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 75 passed。
 
 ---
 
