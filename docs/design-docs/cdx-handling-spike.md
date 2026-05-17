@@ -203,7 +203,7 @@ def load_structure(path: Path) -> Chem.Mol:
   - [x] 能解析出 `Mol`
   - [x] canonical SMILES 与 v20 其他导出格式（.cdxml/.mol/.sdf）一致；ChemDraw v20 菜单里**无 `.smi` 选项**，对照 `.smi` 不再追
   - [x] 分子式、分子量与其他格式一致（跨格式对照见用例 3）
-  - [ ] 立体化学（手性、E/Z）是否保留（**当前样例无手性中心，待含手性样例**）
+  - ~~立体化学（手性、E/Z）是否保留~~ **不做**：同学反馈当前项目用不到含手性中心的化合物；如果后续遇到再补验证。
 - [x] 同一个化合物分别用 v20 导出 `.cdx`、`.cdxml`、`.mol`、`.sdf` 四种格式（v20 的 Save As 菜单无 `.smi` 选项），确认四种路径给出同一 canonical SMILES（见用例 3）。
 - [x] 试一个包含反应箭头/多分子的 `.cdx`，确认 RDKit 返回多个 `Mol`，且我们的"取首个"策略是否合理 → 结论：单化合物模式取首个 OK；合成路线模式需要后续设计分类策略
 - [ ] 在 Linux / Windows 上分别 `uv sync` 后跑 `Chem.HasChemDrawCDXSupport()`，确认跨平台一致返回 True（如果有某个平台 False，则需要更明显的安装文档）。
