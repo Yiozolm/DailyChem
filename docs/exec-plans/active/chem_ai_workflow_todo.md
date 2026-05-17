@@ -26,6 +26,7 @@
 - [ ] 询问同学目前常用软件
 
   - [x] ChemDraw 版本：**v20**
+  - [x] 用户常用结构文件格式：**ChemDraw `.cdx`**
   - [X] 是否使用 MestReNova / Mnova
   - [X] 是否使用 Bruker / JEOL / Agilent 仪器数据
   - [ ] 是否有电子实验记录本
@@ -50,7 +51,7 @@
 ## 验收标准
 
 - [ ] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录
-- [x] 明确第一版输入格式：**结构 = `.mol` / `.sdf` / SMILES（从 ChemDraw v20 导出，不收 `.cdx`）；NMR = peak list 文本**
+- [ ] 明确第一版输入/转换策略：**用户常用结构源文件 = `.cdx`；MVP 需要让 `.cdx` 能进入工作流**。优先方案是提供 ChemDraw v20 导出 `.mol` / `.sdf` / SMILES 的明确说明或预处理流程；是否在 CLI 中直接解析 `.cdx` 需技术验证。NMR = peak list 文本。
 - [ ] 明确第一版输出格式
 - [ ] 明确用户最常用的文件命名方式
 
@@ -153,13 +154,19 @@ chemwf --help
 
 ## 目标
 
-支持用 SMILES / MOL / SDF 输入化合物结构，并生成标准化分子信息。
+支持用户常用的 ChemDraw `.cdx` 结构文件进入工作流，并支持用 SMILES / MOL / SDF 生成标准化分子信息。
 
 ## 输入格式约定
 
-第一版要求从 ChemDraw v20 导出为 `.mol` / `.sdf` / SMILES，**不直接解析 `.cdx` 二进制**。
-理由：v20 的 `.cdx` 是经典二进制格式，RDKit 原生只支持 CDXML；解析二进制 `.cdx` 需要引入 OpenBabel 或自写 reader，第一版不值得。
-后续若同学导出习惯只有 `.cdx`，再评估是否加 `.cdx → .mol` 的预处理工具。
+用户常用 ChemDraw v20 的 `.cdx`，因此第一版不能只假设用户会主动提供 `.mol` / `.sdf` / SMILES。
+
+需要先做一个 CDX handling spike，确定 MVP 采用哪一种方案：
+
+1. **保守方案**：CLI 仍只直接解析 `.mol` / `.sdf` / SMILES，但文档和错误提示清楚引导用户从 ChemDraw v20 导出这些格式。
+2. **预处理方案**：增加 `.cdx → .mol` / `.sdf` 的转换步骤；可评估 OpenBabel 或 ChemDraw 导出的 CDXML/MOL 中间格式。
+3. **直接解析方案**：CLI 直接接受 `.cdx`；需要确认二进制 `.cdx` 解析依赖、安装复杂度、结构信息保真度和跨平台稳定性。
+
+当前技术判断：RDKit 原生不直接支持 ChemDraw 二进制 `.cdx`；如果要直接支持 `.cdx`，需要额外依赖或预处理工具。MVP 需要至少做到“遇到 `.cdx` 时给出明确、可操作的转换路径”，避免用户卡住。
 
 ## TODO
 
@@ -186,6 +193,13 @@ class Compound:
   - [ ] 从文件读取结构
   - [ ] 转换为 canonical SMILES
   - [ ] 提取分子基本信息
+- [ ] 评估并设计 `.cdx` 输入路径
+
+  - [ ] 收集至少 1 个真实脱敏 `.cdx` 样例
+  - [ ] 验证 ChemDraw v20 导出 `.mol` / `.sdf` / SMILES 是否保留关键结构信息
+  - [ ] 评估 OpenBabel 或 CDXML 中间格式作为 `.cdx` 预处理方案
+  - [ ] 决定 CLI 是否直接接受 `.cdx`
+  - [ ] 如果暂不直接解析 `.cdx`，为 `.cdx` 输入提供清晰错误提示和导出说明
 - [ ] 生成带原子编号的结构图
 
   - [ ] 输出 SVG
