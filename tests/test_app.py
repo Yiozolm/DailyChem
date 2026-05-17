@@ -27,3 +27,18 @@ def test_streamlit_app_parses_default_smiles() -> None:
     assert metrics["Formula"] == "C9H10O2"
     assert metrics["MW"] == "150.177"
     assert metrics["Heavy atoms"] == "11"
+
+
+def test_streamlit_app_generates_assignment_draft() -> None:
+    app = AppTest.from_file("app.py")
+    app.run(timeout=5)
+
+    app.radio[1].set_value("5 · NMR Assignment").run(timeout=10)
+    app.radio[1].set_value("粘贴文本").run(timeout=10)
+    app.button[0].click().run(timeout=15)
+
+    assert not app.exception
+    assert "assignment 草稿已生成；请人工确认后再使用。" in [
+        message.value for message in app.success
+    ]
+    assert "Editable review table" in [subheader.value for subheader in app.subheader]

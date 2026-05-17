@@ -1,0 +1,79 @@
+rules:
+  - id: aromatic_H
+    label: aromatic H
+    shift_range: [6.0, 8.5]
+    description: aromatic proton
+    required_features: [aromatic_H]
+    multiplicities: [m, d, t, dd, td, br m]
+
+  - id: alkyl_CH3
+    label: alkyl CH3
+    shift_range: [0.7, 1.6]
+    description: aliphatic methyl proton
+    required_features: [alkyl_CH3]
+    multiplicities: [s, d, t, m]
+    expected_integrations: [3, 6, 9]
+
+  - id: ethyl_CH3
+    label: ethyl CH3
+    shift_range: [0.8, 1.4]
+    description: methyl group in an ethyl fragment
+    required_features: [ethyl_CH3]
+    multiplicities: [t]
+    expected_integrations: [3]
+
+  - id: ethyl_CH2
+    label: ethyl CH2
+    shift_range: [2.1, 4.5]
+    description: methylene group in an ethyl fragment
+    required_features: [ethyl_CH2]
+    multiplicities: [q, m]
+    expected_integrations: [2]
+
+  - id: tert_butyl_CH3
+    label: tert-butyl CH3
+    shift_range: [0.9, 1.6]
+    description: equivalent methyl groups in a tert-butyl fragment
+    required_features: [tert_butyl_CH3]
+    multiplicities: [s]
+    expected_integrations: [9]
+
+  - id: OCH3
+    label: OCH3
+    shift_range: [3.2, 4.2]
+    description: methoxy proton
+    required_features: [OCH3]
+    multiplicities: [s]
+    expected_integrations: [3]
+
+  - id: OCH2
+    label: OCH2
+    shift_range: [3.3, 4.6]
+    description: methylene next to oxygen
+    required_features: [OCH2]
+    multiplicities: [q, t, m]
+    expected_integrations: [2]
+
+  - id: aldehyde_H
+    label: aldehyde H
+    shift_range: [9.0, 10.5]
+    description: aldehyde proton
+    required_features: [aldehyde_H]
+    multiplicities: [s, d]
+    expected_integrations: [1]
+
+  - id: alkene_H
+    label: alkene H
+    shift_range: [4.5, 6.8]
+    description: alkene proton
+    required_features: [alkene_H]
+    multiplicities: [m, d, dd, dt]
+
+  - id: acidic_H
+    label: acidic / exchangeable H
+    shift_range: [0.5, 13.0]
+    description: potentially exchangeable OH / NH / SH proton; handle cautiously
+    required_features: [acidic_H]
+    multiplicities: [br, br s, s]
+    expected_integrations: [1]
+    warn_if_missing: false

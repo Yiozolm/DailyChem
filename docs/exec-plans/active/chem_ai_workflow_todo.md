@@ -626,7 +626,7 @@ chemwf init-compound --id C001 --smiles "..."
 
 ## TODO
 
-- [ ] 定义常见 1H NMR 化学位移规则库
+- [x] 定义常见 1H NMR 化学位移规则库
 
 ```yaml
 aromatic_H:
@@ -646,42 +646,53 @@ alkene_H:
   description: alkene proton
 ```
 
-- [ ] 使用 RDKit 检测常见官能团
+- [x] 使用 RDKit 检测常见官能团
 
-  - [ ] aromatic H
-  - [ ] OCH3
-  - [ ] alkyl CH3
-  - [ ] aldehyde H
-  - [ ] alkene H
-  - [ ] acidic proton；谨慎处理
-- [ ] 对每个 peak 生成候选 assignment
+  - [x] aromatic H
+  - [x] OCH3
+  - [x] alkyl CH3
+  - [x] aldehyde H
+  - [x] alkene H
+  - [x] acidic proton；谨慎处理
+- [x] 对每个 peak 生成候选 assignment
 
 ```text
 δ 3.85, s, 3H → possible OCH3
 δ 7.10–7.30, m, 5H → possible aromatic H
 ```
 
-- [ ] 标记风险
+- [x] 标记风险
 
-  - [ ] 积分总数与结构氢数不一致
-  - [ ] 芳香区峰数异常
-  - [ ] 出现无法解释的强峰
-  - [ ] 缺少预期官能团峰
-- [ ] 输出 assignment 草稿
-- [ ] Web UI 中允许人工确认或修改 assignment
+  - [x] 积分总数与结构氢数不一致
+  - [x] 芳香区峰数异常
+  - [x] 出现无法解释的强峰
+  - [x] 缺少预期官能团峰
+- [x] 输出 assignment 草稿
+- [x] Web UI 中允许人工确认或修改 assignment
 
 ## 验收标准
 
-- [ ] 对简单芳香化合物能给出合理候选归属
-- [ ] 对 methoxy、ethyl、tert-butyl 等常见片段能给出候选归属
-- [ ] 程序不会声称 assignment 一定正确
-- [ ] 每个 assignment 都保留“候选/人工确认”状态
+- [x] 对简单芳香化合物能给出合理候选归属
+- [x] 对 methoxy、ethyl、tert-butyl 等常见片段能给出候选归属
+- [x] 程序不会声称 assignment 一定正确
+- [x] 每个 assignment 都保留“候选/人工确认”状态
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/assignment.py`
-- [ ] `data/rules/nmr_1h_rules.yaml`
-- [ ] `examples/processed/assignment_draft.md`
+- [x] `src/chem_workflow/assignment.py`
+- [x] `data/rules/nmr_1h_rules.yaml`
+- [x] `examples/processed/assignment_draft.md`
+
+## 实施备注（2026-05-17）
+
+- 新增 `chemwf nmr assign`，输入结构（SMILES 或结构文件）和 1H peak list，输出
+  Markdown assignment 草稿。
+- assignment 模块只生成候选归属，不生成唯一自动定论；每个 peak 带
+  `candidate` / `needs_review` / `confirmed` 状态字段，供人工复核。
+- 规则库覆盖 aromatic H、alkyl CH3、ethyl CH3/CH2、tert-butyl CH3、OCH3、OCH2、
+  aldehyde H、alkene H、acidic / exchangeable H。
+- Web UI 新增 NMR Assignment Draft 页面，提供 editable review table，允许人工修改
+  selected assignment、manual note 和确认状态。
 
 ---
 

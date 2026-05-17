@@ -49,6 +49,17 @@ uv run streamlit run app.py
 
 使用说明见 [`docs/ui_usage.md`](docs/ui_usage.md)。
 
+### 1H NMR assignment 草稿
+
+```bash
+uv run chemwf nmr assign examples/raw/nmr_multiplet_table_clean_example.tsv \
+  --smiles "CCOC(=O)c1ccccc1" \
+  --frequency 400 \
+  --solvent CDCl3
+```
+
+该命令只生成候选归属和风险提示，不会声称自动 assignment 一定正确。
+
 ## 测试
 
 ```bash

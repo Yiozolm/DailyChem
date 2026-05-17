@@ -9,6 +9,12 @@ from typing import cast
 import typer
 
 from chem_workflow import __version__
+from chem_workflow.assignment import (
+    AssignmentError,
+    assign_1h_nmr,
+    load_assignment_rules,
+    render_assignment_draft,
+)
 from chem_workflow.nmr import (
     NMRInputError,
     parse_mestrenova_multiplet_table,
@@ -344,6 +350,74 @@ def nmr_format(
         typer.echo(f"已写入 {out}")
         return
     typer.echo(text)
+
+
+@nmr_app.command("assign")
+def nmr_assign(
+    path: Path | None = typer.Argument(
+        None,
+        help="MestReNova multiplet 表文件路径（tab/CSV/semicolon separated）",
+        exists=False,
+    ),
+    inline: str | None = typer.Option(
+        None, "--inline", "-i", help="直接贴 1H multiplet 表文本，与 path 二选一"
+    ),
+    smiles: str | None = typer.Option(
+        None, "--smiles", "-s", help="目标化合物 SMILES，与 --structure 二选一"
+    ),
+    structure: Path | None = typer.Option(
+        None,
+        "--structure",
+        help="结构文件路径（.cdx/.cdxml/.mol/.sdf/.smi/.smiles），与 --smiles 二选一",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+    ),
+    frequency: float | None = typer.Option(
+        None, "--frequency", "-f", help="谱仪频率 (MHz)，例如 400"
+    ),
+    solvent: str | None = typer.Option(None, "--solvent", help="溶剂，例如 CDCl3 / DMSO-d6"),
+    sample_id: str | None = typer.Option(None, "--sample-id", help="样品编号"),
+    rules: Path | None = typer.Option(
+        None,
+        "--rules",
+        help="自定义 1H assignment 规则 YAML；默认 data/rules/nmr_1h_rules.yaml",
+        exists=False,
+    ),
+    out: Path | None = typer.Option(None, "--out", "-o", help="输出 Markdown 草稿到文件"),
+) -> None:
+    """生成 1H NMR 候选 assignment 草稿；不会给出唯一自动定论。"""
+    if (path is None) == (inline is None):
+        raise typer.BadParameter("请提供 path 或 --inline 二者之一")
+    if (smiles is None) == (structure is None):
+        raise typer.BadParameter("请提供 --smiles 或 --structure 二者之一")
+
+    source: str | Path = path if path is not None else inline  # type: ignore[assignment]
+    try:
+        mol = parse_smiles(smiles) if smiles is not None else load_structure(structure)
+        spectrum = parse_mestrenova_multiplet_table(
+            source,
+            nucleus="1H",
+            frequency_mhz=frequency,
+            solvent=solvent,
+            sample_id=sample_id,
+        )
+        draft = assign_1h_nmr(
+            mol,
+            spectrum,
+            rules=load_assignment_rules(rules) if rules is not None else None,
+        )
+        markdown = render_assignment_draft(draft)
+    except (AssignmentError, NMRInputError, StructureInputError) as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(markdown, encoding="utf-8")
+        typer.echo(f"已写入 {out}")
+        return
+    typer.echo(markdown, nl=False)
 
 
 @records_app.command("generate")

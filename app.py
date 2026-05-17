@@ -15,6 +15,12 @@ from typing import Literal, cast
 
 import streamlit as st
 
+from chem_workflow.assignment import (
+    AssignmentError,
+    assign_1h_nmr,
+    assignment_rows_for_review,
+    render_assignment_draft,
+)
 from chem_workflow.nmr import NMRInputError, parse_mestrenova_multiplet_table
 from chem_workflow.nmr_formatter import (
     NMRFormatError,
@@ -69,6 +75,7 @@ def main() -> None:
             "2 · NMR Formatter",
             "3 · Experiment Record",
             "4 · Project Export",
+            "5 · NMR Assignment",
         ),
     )
 
@@ -78,8 +85,10 @@ def main() -> None:
         _nmr_formatter_page()
     elif page.startswith("3"):
         _experiment_record_page()
-    else:
+    elif page.startswith("4"):
         _project_export_page()
+    else:
+        _assignment_page()
 
 
 def _render_sidebar() -> None:
@@ -94,6 +103,7 @@ def _render_sidebar() -> None:
         - NMR：MestReNova multiplet table
         - 记录：Markdown 初稿
         - 导出：标准 compound 文件夹 + zip
+        - Assignment：候选归属 + 人工确认
         """
     )
 
@@ -128,7 +138,7 @@ def _compound_setup_page() -> None:
             )
         show_atom_index = st.checkbox("显示 atom index", value=True)
 
-        if st.button("解析结构", type="primary", use_container_width=True):
+        if st.button("解析结构", type="primary", width="stretch"):
             _handle_structure_parse(
                 compound_id=compound_id,
                 input_mode=input_mode,
@@ -212,7 +222,7 @@ def _nmr_formatter_page() -> None:
                 placeholder="Name\tShift\tRange\tH's\tIntegral\tClass\tJ's\nA (s)\t7.26\t...",
             )
 
-        if st.button("格式化 NMR", type="primary", use_container_width=True):
+        if st.button("格式化 NMR", type="primary", width="stretch"):
             _handle_nmr_format(
                 nucleus=nucleus,
                 frequency=frequency,
@@ -460,7 +470,7 @@ def _project_export_page() -> None:
             disabled=not bool(st.session_state.get("record_markdown")),
         )
 
-        if st.button("初始化并导出项目", type="primary", use_container_width=True):
+        if st.button("初始化并导出项目", type="primary", width="stretch"):
             _handle_project_export(
                 compound_id=compound_id,
                 project_dir=project_dir,
@@ -473,6 +483,152 @@ def _project_export_page() -> None:
 
     with right:
         _show_export_result()
+
+
+def _assignment_page() -> None:
+    _page_header(
+        "NMR Assignment Draft",
+        "用规则库和结构特征生成 1H NMR 候选归属；结果必须人工确认。",
+    )
+
+    left, right = st.columns([0.95, 1.05], gap="large")
+    with left:
+        structure_source = st.radio(
+            "结构来源",
+            ("使用当前 SMILES", "手动输入 SMILES", "上传结构文件"),
+            horizontal=True,
+            key="assignment_structure_source",
+        )
+        smiles = _state_text("compound_smiles", "COc1ccccc1")
+        uploaded_structure = None
+        if structure_source == "手动输入 SMILES":
+            smiles = st.text_area("SMILES", value=smiles, height=80, key="assignment_smiles")
+        elif structure_source == "上传结构文件":
+            uploaded_structure = st.file_uploader(
+                "上传 MOL / SDF / CDX / CDXML / SMI",
+                type=["mol", "sdf", "cdx", "cdxml", "smi", "smiles"],
+                key="assignment_structure_upload",
+            )
+
+        col_freq, col_solvent = st.columns(2)
+        with col_freq:
+            frequency = st.number_input(
+                "1H Frequency (MHz)",
+                min_value=0.0,
+                value=400.0,
+                step=1.0,
+                key="assignment_frequency",
+            )
+        with col_solvent:
+            solvent = st.text_input("Solvent", value="CDCl3", key="assignment_solvent")
+
+        nmr_mode = st.radio("1H peak list 输入方式", ("上传文件", "粘贴文本"), horizontal=True)
+        uploaded_nmr = None
+        inline_nmr = ""
+        if nmr_mode == "上传文件":
+            uploaded_nmr = st.file_uploader(
+                "上传 1H peak list（TSV / CSV / TXT）",
+                type=["tsv", "csv", "txt"],
+                key="assignment_nmr_upload",
+            )
+        else:
+            inline_nmr = st.text_area(
+                "粘贴 1H MestReNova multiplet table",
+                value="Name\tShift\tH's\tClass\nA\t7.25\t5\tm\nB\t3.80\t3\ts\n",
+                height=220,
+                key="assignment_nmr_inline",
+            )
+
+        if st.button("生成 assignment 草稿", type="primary", width="stretch"):
+            _handle_assignment_generate(
+                structure_source=structure_source,
+                smiles=smiles,
+                uploaded_structure=uploaded_structure,
+                frequency=frequency,
+                solvent=solvent,
+                uploaded_nmr=uploaded_nmr,
+                inline_nmr=inline_nmr,
+            )
+
+    with right:
+        _show_assignment_result()
+
+
+def _handle_assignment_generate(
+    *,
+    structure_source: str,
+    smiles: str,
+    uploaded_structure: object,
+    frequency: float,
+    solvent: str,
+    uploaded_nmr: object,
+    inline_nmr: str,
+) -> None:
+    try:
+        with TemporaryDirectory() as tmp:
+            if structure_source == "上传结构文件":
+                if uploaded_structure is None:
+                    st.warning("请先上传结构文件。")
+                    return
+                structure_path = write_uploaded_file(
+                    cast(UploadedFileLike, uploaded_structure), tmp
+                )
+                mol = load_structure(structure_path)
+            else:
+                smiles_input = optional_text(smiles)
+                if smiles_input is None:
+                    st.warning("请提供 SMILES，或切换到上传结构文件。")
+                    return
+                mol = parse_smiles(smiles_input)
+
+            nmr_source = _read_nmr_source(uploaded=uploaded_nmr, inline_text=inline_nmr)
+            spectrum = parse_mestrenova_multiplet_table(
+                nmr_source,
+                nucleus="1H",
+                frequency_mhz=frequency,
+                solvent=optional_text(solvent),
+            )
+            draft = assign_1h_nmr(mol, spectrum)
+            markdown = render_assignment_draft(draft)
+            st.session_state["assignment_markdown"] = markdown
+            st.session_state["assignment_rows"] = assignment_rows_for_review(draft)
+            st.session_state["compound_smiles"] = draft.compound_smiles
+            st.success("assignment 草稿已生成；请人工确认后再使用。")
+    except (AssignmentError, NMRInputError, StructureInputError, ValueError) as error:
+        st.error(str(error))
+
+
+def _show_assignment_result() -> None:
+    markdown = st.session_state.get("assignment_markdown")
+    rows = st.session_state.get("assignment_rows")
+    if not isinstance(markdown, str) or not markdown:
+        st.info("生成后这里会显示候选归属、风险提示和人工确认表。")
+        return
+
+    st.subheader("Editable review table")
+    if isinstance(rows, list):
+        edited = st.data_editor(
+            rows,
+            width="stretch",
+            num_rows="fixed",
+            column_config={
+                "status": st.column_config.SelectboxColumn(
+                    "status",
+                    options=["candidate", "needs_review", "confirmed"],
+                    required=True,
+                )
+            },
+            disabled=["peak", "integration", "multiplicity", "candidates"],
+        )
+        st.caption("可在 selected_assignment / manual_note 中人工修改；确认后再标记 confirmed。")
+        st.session_state["assignment_rows"] = edited
+
+    st.subheader("Markdown draft")
+    _downloadable_code(
+        markdown,
+        file_name=f"{_safe_state_file_stem('compound_id')}_assignment_draft.md",
+        mime="text/markdown",
+    )
 
 
 def _handle_project_export(
@@ -560,7 +716,7 @@ def _show_export_result() -> None:
         data=summary + "\n",
         file_name="summary.md",
         mime="text/markdown",
-        use_container_width=True,
+        width="stretch",
     )
     if isinstance(zip_bytes, bytes):
         st.download_button(
@@ -568,7 +724,7 @@ def _show_export_result() -> None:
             data=zip_bytes,
             file_name=zip_name,
             mime="application/zip",
-            use_container_width=True,
+            width="stretch",
         )
 
 
@@ -605,7 +761,7 @@ def _downloadable_code(text: str, *, file_name: str, mime: str) -> None:
         data=text + "\n",
         file_name=file_name,
         mime=mime,
-        use_container_width=True,
+        width="stretch",
     )
 
 
