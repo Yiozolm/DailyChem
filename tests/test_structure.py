@@ -17,6 +17,9 @@ from chem_workflow.structure import (
 
 FIXTURES = Path(__file__).resolve().parents[1] / "examples" / "raw"
 COMPOUND_B_CDX = FIXTURES / "compound_b_single.cdx"
+COMPOUND_B_CDXML = FIXTURES / "compound_b_single.cdxml"
+COMPOUND_B_MOL = FIXTURES / "compound_b_single.mol"
+COMPOUND_B_SDF = FIXTURES / "compound_b_single.sdf"
 SYNTHESIS_ROUTE_CDX = FIXTURES / "synthesis_route_cys.cdx"
 
 # 来自 docs/design-docs/cdx-handling-spike.md 的预期值
@@ -58,6 +61,19 @@ def test_load_structure_cdx_multi_compound_warns():
     info = mol_info(mol)
     # 合成路线第一个分子在 spike 文档里记录为 C6Br2N4O4S，与 compound B 同结构
     assert info["formula"] == COMPOUND_B_FORMULA
+
+
+@pytest.mark.parametrize(
+    "fixture",
+    [COMPOUND_B_CDX, COMPOUND_B_CDXML, COMPOUND_B_MOL, COMPOUND_B_SDF],
+    ids=["cdx", "cdxml", "mol", "sdf"],
+)
+def test_load_structure_cross_format_consistency(fixture):
+    """compound B 的 4 种 ChemDraw v20 导出格式应给出同一 canonical SMILES。"""
+    info = mol_info(load_structure(fixture))
+    assert info["smiles"] == COMPOUND_B_SMILES
+    assert info["formula"] == COMPOUND_B_FORMULA
+    assert info["mol_weight"] == pytest.approx(COMPOUND_B_MW, abs=0.01)
 
 
 def test_load_structure_unknown_suffix(tmp_path):
