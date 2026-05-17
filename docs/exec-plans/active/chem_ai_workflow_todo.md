@@ -249,7 +249,7 @@ note
 
 ## TODO
 
-- [ ] 定义 NMRPeak 数据模型
+- [x] 定义 NMRPeak 数据模型
 
 ```python
 class NMRPeak:
@@ -261,7 +261,7 @@ class NMRPeak:
     note: str | None
 ```
 
-- [ ] 定义 NMRSpectrum 数据模型
+- [x] 定义 NMRSpectrum 数据模型
 
 ```python
 class NMRSpectrum:
@@ -271,40 +271,48 @@ class NMRSpectrum:
     peaks: list[NMRPeak]
 ```
 
-- [ ] 支持从 CSV 读取 peak list
-- [ ] 支持从手动文本读取简单 peak list
-- [ ] 标准化 multiplicity
+- [x] 支持从 CSV 读取 peak list（**改为：MestReNova multiplet 表 tab-separated 文本**，决策见 `docs/design-docs/nmr-input-strategy.md` 现实校正小节）
+- [x] 支持从手动文本读取简单 peak list（直接 `--inline` 贴 multiplet 表文本）
+- [x] 标准化 multiplicity
 
-  - [ ] singlet → s
-  - [ ] doublet → d
-  - [ ] triplet → t
-  - [ ] quartet → q
-  - [ ] multiplet → m
-  - [ ] doublet of doublets → dd
-- [ ] 标准化 J coupling
+  - [x] singlet → s
+  - [x] doublet → d
+  - [x] triplet → t
+  - [x] quartet → q
+  - [x] multiplet → m
+  - [x] doublet of doublets → dd
+- [x] 标准化 J coupling
 
-  - [ ] `8.0` → `[8.0]`
-  - [ ] `8.0, 2.0` → `[8.0, 2.0]`
-  - [ ] `J = 8.0 Hz` → `[8.0]`
-- [ ] 支持常见错误提示
+  - [x] `8.0` → `[8.0]`
+  - [x] `8.0, 2.0` → `[8.0, 2.0]`
+  - [x] `J = 8.0 Hz` → `[8.0]`
+- [x] 支持常见错误提示
 
-  - [ ] shift 缺失
-  - [ ] integration 缺失
-  - [ ] multiplicity 不合法
-  - [ ] J 值格式错误
+  - [x] shift 缺失
+  - [x] integration 缺失（缺时整峰 integration=None，下游 Phase 4 决定如何处理）
+  - [x] multiplicity 不合法（warn 但保留原值）
+  - [x] J 值格式错误（parser 容错：抓不到数字时返回空列表）
 
 ## 验收标准
 
-- [ ] 能读取至少 3 种不同格式的 peak list
-- [ ] 能把 peak list 转成统一 JSON
-- [ ] 错误输入有明确提示
-- [ ] 至少有 10 个 NMR parsing 单元测试
+- [x] 能读取至少 3 种不同格式的 peak list（multiplet 表文件 / `--inline` 文本 / case-insensitive 列名 / 短行自动 pad —— 共 4 种解析路径）
+- [x] 能把 peak list 转成统一 JSON（`examples/processed/nmr_peaks.json`）
+- [x] 错误输入有明确提示（缺 Shift 列 / Shift 非数值 / 表格非 Tab 分隔 / 空数据行 / 未知 multiplicity 警告）
+- [x] 至少有 10 个 NMR parsing 单元测试（实际 34 个）
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/nmr.py`
-- [ ] `tests/test_nmr.py`
-- [ ] `examples/processed/nmr_peaks.json`
+- [x] `src/chem_workflow/nmr.py`
+- [x] `tests/test_nmr.py`
+- [x] `examples/processed/nmr_peaks.json`
+
+## 实施备注（2026-05-17）
+
+- 输入格式从原设计的"MestReNova Save As → Peak List CSV"调整为"View → Tables → Multiplets 复制粘贴的 tab-separated 文本"。理由：同学不熟悉 Save As CSV 路径，复制粘贴是他能稳定操作的最低成本动作。
+- Parser 处理两个 MestReNova 复制粘贴 quirk：(a) 数据行多一个表头未声明的"行号"列；(b) 同学漏复制表头首个 tab 导致表头错位 1 位。检测条件见 `_split_table()`。
+- 单峰行末尾 `J's` 空格被吞导致字段数不足 → parser 自动 pad 空串。
+- 同学第一次给的样例数据有化学侧问题（杂质峰被 auto multiplet 一并算进同一 multiplet）：总氢数 101、J = 97/81 Hz 异常。Parser 仍**忠实解析**，不在 Phase 3 范围内做 sanity check（留作 Phase 5 拿到结构上下文后再做"H 数 vs 结构氢数"校验）。
+- JACS 文本格式 parser（`parse_inline_report`）留作 P1：multiplet 表已经够结构化，第一版不必双轨。
 
 ---
 

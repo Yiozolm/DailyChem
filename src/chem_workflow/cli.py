@@ -8,6 +8,10 @@ from pathlib import Path
 import typer
 
 from chem_workflow import __version__
+from chem_workflow.nmr import (
+    NMRInputError,
+    parse_mestrenova_multiplet_table,
+)
 from chem_workflow.structure import (
     StructureInputError,
     draw_structure,
@@ -20,6 +24,9 @@ app = typer.Typer(help="化学工作流自动化工具 (chemwf)", no_args_is_hel
 
 structure_app = typer.Typer(help="化合物结构相关命令", no_args_is_help=True)
 app.add_typer(structure_app, name="structure")
+
+nmr_app = typer.Typer(help="NMR peak list 相关命令", no_args_is_help=True)
+app.add_typer(nmr_app, name="nmr")
 
 
 @app.callback()
@@ -102,6 +109,79 @@ def structure_draw(
         typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from e
     typer.echo(f"已写入 {written}")
+
+
+@nmr_app.command("parse")
+def nmr_parse(
+    path: Path | None = typer.Argument(
+        None,
+        help="MestReNova multiplet 表文件路径（tab-separated）",
+        exists=False,
+    ),
+    inline: str | None = typer.Option(
+        None, "--inline", "-i", help="直接贴 multiplet 表文本，与 path 二选一"
+    ),
+    nucleus: str = typer.Option("1H", "--nucleus", "-n", help="核种：1H / 13C / 19F / 31P"),
+    frequency: float | None = typer.Option(
+        None, "--frequency", "-f", help="谱仪频率 (MHz)，例如 400"
+    ),
+    solvent: str | None = typer.Option(
+        None, "--solvent", help="溶剂，例如 CDCl3 / DMSO-d6"
+    ),
+    sample_id: str | None = typer.Option(None, "--sample-id", help="样品编号"),
+    as_json: bool = typer.Option(False, "--json", help="以 JSON 输出"),
+    out: Path | None = typer.Option(
+        None, "--out", "-o", help="输出 JSON 到文件（隐含 --json）"
+    ),
+) -> None:
+    """解析 MestReNova multiplet 表（tab-separated），输出结构化 peak list。"""
+    if (path is None) == (inline is None):
+        raise typer.BadParameter("请提供 path 或 --inline 二者之一")
+    if nucleus not in ("1H", "13C", "19F", "31P"):
+        raise typer.BadParameter(f"--nucleus 必须是 1H/13C/19F/31P，收到 {nucleus!r}")
+
+    source: str | Path = path if path is not None else inline  # type: ignore[assignment]
+    try:
+        spectrum = parse_mestrenova_multiplet_table(
+            source,
+            nucleus=nucleus,  # type: ignore[arg-type]
+            frequency_mhz=frequency,
+            solvent=solvent,
+            sample_id=sample_id,
+        )
+    except NMRInputError as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    payload = spectrum.model_dump_json(indent=2)
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(payload + "\n", encoding="utf-8")
+        typer.echo(f"已写入 {out}")
+        return
+    if as_json:
+        typer.echo(payload)
+    else:
+        _print_spectrum_human(spectrum)
+
+
+def _print_spectrum_human(spectrum) -> None:  # noqa: ANN001 — local helper
+    head = f"{spectrum.nucleus} NMR"
+    if spectrum.frequency_mhz:
+        head += f" ({spectrum.frequency_mhz:g} MHz"
+        if spectrum.solvent:
+            head += f", {spectrum.solvent}"
+        head += ")"
+    elif spectrum.solvent:
+        head += f" ({spectrum.solvent})"
+    typer.echo(head)
+    typer.echo(f"{'δ (ppm)':>9} {'mult':>6} {'H':>5}  J (Hz)")
+    for p in spectrum.peaks:
+        j = ", ".join(f"{v:g}" for v in p.j_hz) if p.j_hz else ""
+        h = f"{p.integration:g}" if p.integration is not None else ""
+        typer.echo(
+            f"{p.shift_ppm:>9.3f} {p.multiplicity or '':>6} {h:>5}  {j}"
+        )
 
 
 if __name__ == "__main__":

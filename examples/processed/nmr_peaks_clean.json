@@ -1,0 +1,80 @@
+{
+  "nucleus": "1H",
+  "frequency_mhz": 400.0,
+  "solvent": "CDCl3",
+  "sample_id": null,
+  "peaks": [
+    {
+      "shift_ppm": 8.56,
+      "shift_range": [
+        8.34,
+        8.72
+      ],
+      "integration": 2.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "F",
+      "note": null
+    },
+    {
+      "shift_ppm": 7.51,
+      "shift_range": [
+        7.38,
+        7.65
+      ],
+      "integration": 2.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "E",
+      "note": null
+    },
+    {
+      "shift_ppm": 2.72,
+      "shift_range": [
+        2.69,
+        2.76
+      ],
+      "integration": 2.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "D",
+      "note": null
+    },
+    {
+      "shift_ppm": 5.17,
+      "shift_range": [
+        5.03,
+        5.28
+      ],
+      "integration": 2.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "C",
+      "note": null
+    },
+    {
+      "shift_ppm": 1.24,
+      "shift_range": [
+        1.15,
+        1.3
+      ],
+      "integration": 2.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "B",
+      "note": null
+    },
+    {
+      "shift_ppm": 3.11,
+      "shift_range": [
+        3.0,
+        3.19
+      ],
+      "integration": 9.0,
+      "multiplicity": "s",
+      "j_hz": [],
+      "assignment": "A",
+      "note": null
+    }
+  ]
+}

@@ -55,3 +55,70 @@ shift_ppm    integration    multiplicity    j_hz    assignment    note
 - **Phase 3**（NMR peak list 数据模型与解析）：等同学提供脱敏 CSV 后开工；不再考虑接受谱图截图或仪器原始数据。
 - **Phase 4**（标准 NMR 描述自动生成）：积分归一化策略需要支持"以某峰为参考重新缩放"。
 - **Phase 8**（结构—谱图 assignment 辅助）：MestReNova multiplet 字母 ID ↔ 结构原子编号的映射是关键 UX。
+
+## 现实校正（2026-05-17 实施 Phase 3 时）
+
+原先假定同学走 `File → Save As → Peak List CSV` 给一份字段命名规整的 CSV。实际同学不熟悉这个路径，给出的样例是：
+
+1. `data/raw/H-NMR.txt` —— MestReNova Peak Picking 导出（只有 shift + intensity，缺 multiplicity / integration / J），**信息量不够，第一版不接**
+2. multiplet 表 **直接复制粘贴**的 tab-separated 文本（`View → Tables → Multiplets` 选中表格 Ctrl+C），字段含 Name / Shift / Range / H's / Integral / Class / J's —— **第一版主输入格式**
+
+### multiplet 表两种复制粘贴姿态
+
+同学的实际复制粘贴行为有两种，第一版 parser 都支持：
+
+**姿态 A：tab-separated**（贴到识别 tab 的地方，如纯文本编辑器 / 命令行）
+
+```
+Name	Shift	Range	H's	Integral	Class	J's
+1	F (s)	8.56	8.86 .. 8.29	1	1.06	s
+2	E (s)	7.50	7.80 .. 7.23	1	1.00	s
+3	D (d)	3.23	3.64 .. 3.05	45	45.13	d	97.06
+```
+
+**姿态 B：newline-separated**（贴到不识别 tab 的输入框，如微信、某些 web 表单，tab 被换行替换）
+
+```
+Name
+Shift
+Range
+H's
+Integral
+Class
+J's
+1
+F (s)
+8.56
+8.72 .. 8.34
+0
+0.18
+s
+
+2
+E (s)
+...
+```
+
+Parser 自动检测姿态 B（第一非空行不含 tab 且匹配列名别名），把它 normalize 成姿态 A 后走同一套解析逻辑。表头识别按"连续列名行"，数据组按"空行分隔"。
+
+### 列名 / 字段语法约定
+
+### 列名 / 字段语法约定
+
+- 列分隔符：**Tab**（姿态 A）或 **newline**（姿态 B，自动 normalize）
+- 列名大小写不敏感、允许常见别名（`H's` / `H` / `H count`、`Class` / `Multiplicity` 等）
+- `Range`：`high .. low` 或 `high–low`，parser 自动归一成 `(low, high)`
+- `J's`：单值或多值用任意非数字字符分隔，"J = 8.0 Hz" / "J1 = 8.0, J2 = 2.0 Hz" 都接受
+- **复制粘贴 quirk**：MestReNova 表里第一列是行号但表头不带列名。Parser 自动检测两种情况：
+  - 数据行恰好多 1 列且首字段是纯数字 → 丢首列
+  - 数据行与表头等列、首字段是纯数字、表头第一列名不是 Shift 别名 → 表头前补一个虚 `#` 列
+- 单峰行末尾 `J's` 列为空被吞 → parser 自动 pad 空串
+
+### JACS 文本格式（`parse_inline_report`）暂不做
+
+`Scripts → Report → Multiplets → JACS` 走的路径是直接出 "1H NMR (400 MHz, CDCl₃) δ 7.26 (d, J = 8.0 Hz, 2H), ..."。这条路径同学也能用，但 multiplet 表的列式数据更结构化（字段直接对齐、不依赖正则），所以**第一版只做 multiplet 表 parser**，JACS 文本格式留作后续 P1。
+
+### 给同学的导出指南
+
+待 Phase 3 完成后落到 `docs/references/mestrenova-export-multiplet.md`（包含：`View → Tables → Multiplets` 操作、复制粘贴步骤、积分归一化提醒、杂质峰处理）。
+
