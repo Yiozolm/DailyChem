@@ -16,10 +16,12 @@ from pathlib import Path
 
 from rdkit import Chem
 from rdkit.Chem import AllChem, Descriptors
+from rdkit.Chem.Draw import rdMolDraw2D
 
 _CDX_SUFFIXES = {".cdx", ".cdxml"}
 _MOL_SUFFIXES = {".mol", ".sdf"}
 _SMILES_SUFFIXES = {".smi", ".smiles"}
+_IMAGE_SUFFIXES = {".svg", ".png"}
 SUPPORTED_SUFFIXES = _CDX_SUFFIXES | _MOL_SUFFIXES | _SMILES_SUFFIXES
 
 
@@ -117,3 +119,42 @@ def mol_info(mol: Chem.Mol) -> dict[str, object]:
         "heavy_atoms": mol.GetNumHeavyAtoms(),
         "num_atoms": mol.GetNumAtoms(),
     }
+
+
+def draw_structure(
+    mol: Chem.Mol,
+    out_path: str | Path,
+    *,
+    show_atom_index: bool = False,
+    size: tuple[int, int] = (500, 500),
+) -> Path:
+    """把分子渲染为 SVG / PNG，按 `out_path` 后缀分派。
+
+    返回写入的 Path。`show_atom_index=True` 时叠加 RDKit 0-based 原子编号
+    （Phase 8 assignment 辅助会用到）。
+    """
+    if mol is None:
+        raise StructureInputError("mol 为 None")
+    out = Path(out_path)
+    suffix = out.suffix.lower()
+    if suffix not in _IMAGE_SUFFIXES:
+        raise StructureInputError(
+            f"未识别的图片格式：{suffix or '(无后缀)'}。 支持：{sorted(_IMAGE_SUFFIXES)}"
+        )
+
+    width, height = size
+    if suffix == ".svg":
+        drawer = rdMolDraw2D.MolDraw2DSVG(width, height)
+    else:  # .png
+        drawer = rdMolDraw2D.MolDraw2DCairo(width, height)
+    drawer.drawOptions().addAtomIndices = show_atom_index
+    drawer.DrawMolecule(mol)
+    drawer.FinishDrawing()
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    data = drawer.GetDrawingText()
+    if suffix == ".svg":
+        out.write_text(data, encoding="utf-8")
+    else:
+        out.write_bytes(data)
+    return out

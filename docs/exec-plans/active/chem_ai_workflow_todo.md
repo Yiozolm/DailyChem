@@ -51,7 +51,9 @@
 ## 验收标准
 
 - [ ] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录
-- [ ] 明确第一版输入/转换策略：**用户常用结构源文件 = `.cdx`；MVP 需要让 `.cdx` 能进入工作流**。优先方案是提供 ChemDraw v20 导出 `.mol` / `.sdf` / SMILES 的明确说明或预处理流程；是否在 CLI 中直接解析 `.cdx` 需技术验证。NMR = peak list 文本。
+- [x] 明确第一版输入/转换策略：
+  - **结构**：`.cdx`（用户常用）/ `.cdxml` / `.mol` / `.sdf` / SMILES 全部接受；rdkit 2026.3.1 PyPI 轮子原生支持 `.cdx`/`.cdxml`，单化合物 MVP 已实现（见 `docs/design-docs/cdx-handling-spike.md`）。
+  - **NMR**：接 **MestReNova 导出的 peak table（CSV 优先，文本报告备选）**。不接 Bruker 仪器原始数据目录（fid/acqus 等，等于重建 MestReNova），不接谱图截图（光栅图反推精度差且丢积分）。详见 `docs/design-docs/nmr-input-strategy.md`。
 - [ ] 明确第一版输出格式
 - [ ] 明确用户最常用的文件命名方式
 

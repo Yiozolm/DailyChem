@@ -9,6 +9,7 @@ from rdkit import Chem
 
 from chem_workflow.structure import (
     StructureInputError,
+    draw_structure,
     load_structure,
     mol_info,
     parse_smiles,
@@ -108,3 +109,56 @@ def test_mol_info_keys():
     }
     assert info["formula"] == "C6H6"
     assert info["heavy_atoms"] == 6
+
+
+def test_draw_structure_svg(tmp_path):
+    mol = parse_smiles("CCO")
+    out = tmp_path / "ethanol.svg"
+    written = draw_structure(mol, out)
+    assert written == out and out.exists()
+    content = out.read_text()
+    assert content.startswith("<?xml")
+    assert "<svg" in content and "</svg>" in content
+
+
+def test_draw_structure_svg_with_atom_index(tmp_path):
+    mol = parse_smiles("CCO")
+    out_plain = tmp_path / "plain.svg"
+    out_indexed = tmp_path / "indexed.svg"
+    draw_structure(mol, out_plain, show_atom_index=False)
+    draw_structure(mol, out_indexed, show_atom_index=True)
+    # 带原子编号的 SVG 内容应更长（多了数字 text 元素）
+    assert len(out_indexed.read_text()) > len(out_plain.read_text())
+
+
+def test_draw_structure_png(tmp_path):
+    mol = parse_smiles("CCO")
+    out = tmp_path / "ethanol.png"
+    draw_structure(mol, out)
+    assert out.exists()
+    # PNG 魔数
+    assert out.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_draw_structure_unknown_format(tmp_path):
+    mol = parse_smiles("CCO")
+    with pytest.raises(StructureInputError, match="未识别的图片格式"):
+        draw_structure(mol, tmp_path / "out.gif")
+
+
+def test_draw_structure_creates_parent_dir(tmp_path):
+    mol = parse_smiles("CCO")
+    out = tmp_path / "nested" / "dir" / "ethanol.svg"
+    draw_structure(mol, out)
+    assert out.exists()
+
+
+def test_draw_structure_real_cdx(tmp_path):
+    """端到端：从 .cdx 读结构，带 atom_index 渲染 SVG。"""
+    mol = load_structure(COMPOUND_B_CDX)
+    out = tmp_path / "compound_b.svg"
+    draw_structure(mol, out, show_atom_index=True, size=(600, 600))
+    content = out.read_text()
+    assert "<svg" in content
+    # heavy_atoms=17，atom index 0-16 至少有几个应在文本里
+    assert ">0<" in content or "atom-0" in content or 'class="atom-0"' in content
