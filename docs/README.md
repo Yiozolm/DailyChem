@@ -11,3 +11,7 @@
   - `completed/`: 已完成的执行计划和实施记录。
 - `generated/`: 自动生成或阶段性汇总产物。
 - `references/`: 调研笔记、外部资料摘要和历史参考资料。
+
+## Current User-Facing Docs
+
+- [`ui_usage.md`](ui_usage.md): Phase 7 Streamlit 本地 Web UI 使用说明。

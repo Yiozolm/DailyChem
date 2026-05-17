@@ -243,10 +243,7 @@ def test_parse_multiplet_table_empty_data_rows():
 
 
 def test_parse_multiplet_table_unknown_multiplicity_warns():
-    text = (
-        "Name\tShift\tClass\n"
-        "A\t7.26\txyzzz\n"
-    )
+    text = "Name\tShift\tClass\nA\t7.26\txyzzz\n"
     with pytest.warns(UserWarning, match="未识别的 multiplicity"):
         spectrum = parse_mestrenova_multiplet_table(text)
     # 未识别的值按 lowercase 保留，不丢弃
@@ -262,14 +259,35 @@ def test_parse_multiplet_table_space_separated_rejected():
 
 def test_parse_multiplet_table_case_insensitive_columns():
     """列名大小写不敏感（H'S vs H's, SHIFT vs Shift）。"""
-    text = (
-        "NAME\tSHIFT\tCLASS\tJ'S\n"
-        "A (d)\t7.26\td\t8.0\n"
-    )
+    text = "NAME\tSHIFT\tCLASS\tJ'S\nA (d)\t7.26\td\t8.0\n"
     spectrum = parse_mestrenova_multiplet_table(text)
     assert spectrum.peaks[0].shift_ppm == pytest.approx(7.26)
     assert spectrum.peaks[0].multiplicity == "d"
     assert spectrum.peaks[0].j_hz == [8.0]
+
+
+def test_parse_multiplet_table_accepts_comma_csv():
+    text = (
+        "Name,Shift,Range,H's,Integral,Class,J's\nA (dd),7.26,7.30 .. 7.22,1,1.0,dd,\"8.0, 2.0\"\n"
+    )
+
+    spectrum = parse_mestrenova_multiplet_table(text)
+
+    peak = spectrum.peaks[0]
+    assert peak.shift_ppm == pytest.approx(7.26)
+    assert peak.shift_range == (7.22, 7.30)
+    assert peak.integration == pytest.approx(1.0)
+    assert peak.multiplicity == "dd"
+    assert peak.j_hz == [8.0, 2.0]
+
+
+def test_parse_multiplet_table_accepts_semicolon_csv():
+    text = "Name;Shift;Class\nA (s);3.11;s\n"
+
+    spectrum = parse_mestrenova_multiplet_table(text)
+
+    assert spectrum.peaks[0].shift_ppm == pytest.approx(3.11)
+    assert spectrum.peaks[0].multiplicity == "s"
 
 
 def test_spectrum_json_roundtrip():

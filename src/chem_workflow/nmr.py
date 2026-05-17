@@ -1,11 +1,14 @@
 """NMR peak list 数据模型与解析。
 
-第一版只接 MestReNova multiplet 表（`View → Tables → Multiplets` 直接复制粘贴的
-tab-separated 文本）。决策见 `docs/design-docs/nmr-input-strategy.md`。
+第一版优先接 MestReNova multiplet 表（`View → Tables → Multiplets` 直接复制粘贴的
+tab-separated 文本），也接受常见 CSV / semicolon-separated 导出。决策见
+`docs/design-docs/nmr-input-strategy.md`。
 """
 
+import csv
 import re
 import warnings
+from io import StringIO
 from pathlib import Path
 from typing import Literal
 
@@ -42,9 +45,28 @@ _MULT_ALIASES = {
 
 KNOWN_MULTIPLICITIES = frozenset(
     {
-        "s", "d", "t", "q", "p", "quint", "sext", "sept", "m",
-        "dd", "dt", "td", "tt", "dq", "qd", "ddd", "dddd",
-        "br", "br s", "br d", "br t", "br m",
+        "s",
+        "d",
+        "t",
+        "q",
+        "p",
+        "quint",
+        "sext",
+        "sept",
+        "m",
+        "dd",
+        "dt",
+        "td",
+        "tt",
+        "dq",
+        "qd",
+        "ddd",
+        "dddd",
+        "br",
+        "br s",
+        "br d",
+        "br t",
+        "br m",
     }
 )
 
@@ -179,9 +201,7 @@ def _row_to_peak(row: dict[str, str]) -> NMRPeak:
     class_raw = _resolve_column(row, _COLUMN_ALIASES["class"])
     multiplicity = normalize_multiplicity(class_raw)
     if multiplicity and multiplicity not in KNOWN_MULTIPLICITIES:
-        warnings.warn(
-            f"未识别的 multiplicity {class_raw!r}（按原值保留）", stacklevel=3
-        )
+        warnings.warn(f"未识别的 multiplicity {class_raw!r}（按原值保留）", stacklevel=3)
 
     j_hz = parse_j_values(_resolve_column(row, _COLUMN_ALIASES["j"]))
 
@@ -274,6 +294,44 @@ def _maybe_normalize_newline_layout(text: str) -> str:
     return "\n".join(["\t".join(header), *("\t".join(g) for g in groups)])
 
 
+def _maybe_normalize_delimited_layout(text: str) -> str:
+    """Convert common CSV / semicolon-separated tables to tab-separated text.
+
+    The core parser intentionally operates on tabs because pasted MestReNova tables use tabs.
+    File uploads, however, may come from "Save as CSV". If the header line contains Shift but no
+    tab, try comma and semicolon delimiters and convert the whole table to the internal tab layout.
+    """
+    lines = [line for line in text.splitlines() if line.strip()]
+    header_idx = next((i for i, line in enumerate(lines) if "shift" in line.lower()), None)
+    if header_idx is None:
+        return text
+    header_line = lines[header_idx]
+    if "\t" in header_line:
+        return text
+
+    delimiter = _detect_delimiter(header_line)
+    if delimiter is None:
+        return text
+
+    csv_text = "\n".join(lines[header_idx:])
+    reader = csv.reader(StringIO(csv_text), delimiter=delimiter)
+    rows = [
+        [field.strip() for field in row] for row in reader if any(field.strip() for field in row)
+    ]
+    if not rows:
+        return text
+    return "\n".join("\t".join(row) for row in rows)
+
+
+def _detect_delimiter(header_line: str) -> str | None:
+    candidates = (",", ";")
+    for delimiter in candidates:
+        fields = [field.strip().lower() for field in header_line.split(delimiter)]
+        if len(fields) >= 3 and any(field in _COLUMN_ALIASES["shift"] for field in fields):
+            return delimiter
+    return None
+
+
 def _split_table(text: str) -> list[dict[str, str]]:
     """切 multiplet 表：找含 'Shift' 的表头行，下面每行按 tab split 并对齐到表头。
 
@@ -281,9 +339,7 @@ def _split_table(text: str) -> list[dict[str, str]]:
     lines = [ln for ln in text.splitlines() if ln.strip()]
     if not lines:
         return []
-    header_idx = next(
-        (i for i, ln in enumerate(lines) if "shift" in ln.lower()), None
-    )
+    header_idx = next((i for i, ln in enumerate(lines) if "shift" in ln.lower()), None)
     if header_idx is None:
         raise NMRInputError(
             "找不到 multiplet 表头：期望某一行包含 'Shift' 列。"
@@ -296,7 +352,7 @@ def _split_table(text: str) -> list[dict[str, str]]:
             f" 在 MestReNova 里复制 multiplet 表时请确保用 Tab 而非空格分隔。"
         )
 
-    raw_rows = [line.split("\t") for line in lines[header_idx + 1:]]
+    raw_rows = [line.split("\t") for line in lines[header_idx + 1 :]]
 
     # MestReNova 复制粘贴有两种"行号列"quirk，按首行模式判断：
     #   (a) 数据行比表头多 1 列、首字段是行号  → 丢首列
@@ -334,6 +390,7 @@ def parse_mestrenova_multiplet_table(
     `nucleus / frequency_mhz / solvent / sample_id` 由 CLI 补，表本身不带。
     """
     text = _read_source(source)
+    text = _maybe_normalize_delimited_layout(text)
     text = _maybe_normalize_newline_layout(text)
     rows = _split_table(text)
     if not rows:

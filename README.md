@@ -41,6 +41,14 @@ uv run chemwf records generate examples/raw/experiment_record_example.yaml --lan
 uv run chemwf init-compound --id C001 --project-dir examples/project_demo --smiles "CCOC(=O)c1ccccc1"
 ```
 
+### 本地 Web UI
+
+```bash
+uv run streamlit run app.py
+```
+
+使用说明见 [`docs/ui_usage.md`](docs/ui_usage.md)。
+
 ## 测试
 
 ```bash

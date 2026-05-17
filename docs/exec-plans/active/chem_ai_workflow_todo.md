@@ -557,48 +557,60 @@ chemwf init-compound --id C001 --smiles "..."
 
 ### 页面 1：Compound Setup
 
-- [ ] 输入 compound ID
-- [ ] 输入 SMILES
-- [ ] 上传 MOL / SDF
-- [ ] 显示结构图
-- [ ] 显示分子式和分子量
+- [x] 输入 compound ID
+- [x] 输入 SMILES
+- [x] 上传 MOL / SDF
+- [x] 显示结构图
+- [x] 显示分子式和分子量
 
 ### 页面 2：NMR Formatter
 
-- [ ] 选择 nucleus：1H / 13C / 19F / 31P
-- [ ] 输入 frequency
-- [ ] 输入 solvent
-- [ ] 上传 peak list CSV
-- [ ] 预览格式化 NMR 文本
-- [ ] 一键复制
+- [x] 选择 nucleus：1H / 13C / 19F / 31P
+- [x] 输入 frequency
+- [x] 输入 solvent
+- [x] 上传 peak list CSV
+- [x] 预览格式化 NMR 文本
+- [x] 一键复制
 
 ### 页面 3：Experiment Record Generator
 
-- [ ] 填写反应条件
-- [ ] 填写 workup
-- [ ] 填写 purification
-- [ ] 填写 yield
-- [ ] 自动插入 NMR 文本
-- [ ] 生成实验记录 Markdown
+- [x] 填写反应条件
+- [x] 填写 workup
+- [x] 填写 purification
+- [x] 填写 yield
+- [x] 自动插入 NMR 文本
+- [x] 生成实验记录 Markdown
 
 ### 页面 4：Project Export
 
-- [ ] 选择 compound ID
-- [ ] 导出项目文件夹
-- [ ] 导出 Markdown 报告
-- [ ] 导出 Word 报告；后续可做
+- [x] 选择 compound ID
+- [x] 导出项目文件夹
+- [x] 导出 Markdown 报告
+- [ ] 导出 Word 报告（后续扩展，当前以 Markdown / zip 为 MVP）
 
 ## 验收标准
 
-- [ ] 化学同学无需命令行即可完成核心流程
-- [ ] 页面能处理错误输入
-- [ ] 输出可以复制到实验记录或论文 supporting information
+- [x] 化学同学无需命令行即可完成核心流程
+- [x] 页面能处理错误输入
+- [x] 输出可以复制到实验记录或论文 supporting information
 
 ## 可交付物
 
-- [ ] `app.py`
-- [ ] `docs/ui_usage.md`
-- [ ] Demo 截图
+- [x] `app.py`
+- [x] `docs/ui_usage.md`
+- [x] Demo 截图：`docs/generated/phase7_streamlit_demo.png`
+
+## 实施备注（2026-05-17）
+
+- 新增 `app.py` 作为 Streamlit 单文件入口，四个页面复用已有
+  `structure` / `nmr` / `nmr_formatter` / `records` / `storage` 模块，UI 不重复实现化学逻辑。
+- 新增 `src/chem_workflow/ui_support.py` 放置 UI 可测试 helper，例如上传文件落盘、材料行解析、
+  compound 文件夹 zip 导出。
+- 为配合 Web UI 上传，`parse_mestrenova_multiplet_table()` 现在除 tab-separated 文本外，
+  也接受常见 comma / semicolon CSV 导出。
+- 当前 NMR formatter 后端仍只支持 `1H` / `13C` publication-style 输出；UI 中预留
+  `19F` / `31P` 选择，但会给出清晰提示。
+- Word 报告导出不纳入 Phase 7 MVP，保留为后续扩展。
 
 ---
 
