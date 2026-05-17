@@ -172,7 +172,7 @@ chemwf --help
 
 ## TODO
 
-- [ ] 定义 compound 数据模型
+- [ ] 定义 compound 数据模型（**延后到 Phase 5**：实验记录开做时一起设计 schema 更准。当前 `mol_info()` 返回 dict 已够用。）
 
 ```python
 class Compound:
@@ -184,17 +184,17 @@ class Compound:
     molecular_weight: float | None
 ```
 
-- [ ] 实现 SMILES 读取
+- [x] 实现 SMILES 读取
 
-  - [ ] 校验 SMILES 是否合法
-  - [ ] 生成 canonical SMILES
-  - [ ] 计算分子式
-  - [ ] 计算分子量
-- [ ] 实现 MOL / SDF 读取
+  - [x] 校验 SMILES 是否合法
+  - [x] 生成 canonical SMILES
+  - [x] 计算分子式
+  - [x] 计算分子量
+- [x] 实现 MOL / SDF 读取
 
-  - [ ] 从文件读取结构
-  - [ ] 转换为 canonical SMILES
-  - [ ] 提取分子基本信息
+  - [x] 从文件读取结构
+  - [x] 转换为 canonical SMILES
+  - [x] 提取分子基本信息
 - [x] 评估并设计 `.cdx` 输入路径（结论见 `docs/design-docs/cdx-handling-spike.md`）
 
   - [x] 收集至少 1 个真实脱敏 `.cdx` 样例（合成路线 + 单化合物各一份）
@@ -203,12 +203,12 @@ class Compound:
   - [x] 决定 CLI 是否直接接受 `.cdx` → 是。直接走 `Chem.MolsFromCDXMLFile`（默认 Auto 嗅探 .cdx vs .cdxml）
   - [x] 单化合物 MVP 取首个 Mol；`len(mols) > 1` 时给警告但取首个；合成路线模式列入 Phase 2 之后的扩展
   - [ ] 如果某平台 `HasChemDrawCDXSupport()` 为 False，错误提示引导用户从 ChemDraw 手动导出 `.mol/.sdf`（保底）
-- [ ] 生成带原子编号的结构图
+- [x] 生成带原子编号的结构图
 
-  - [ ] 输出 SVG
-  - [ ] 输出 PNG
-  - [ ] 支持显示 atom index
-- [ ] 添加命令行接口
+  - [x] 输出 SVG
+  - [x] 输出 PNG
+  - [x] 支持显示 atom index
+- [x] 添加命令行接口
 
 ```bash
 chemwf structure parse --smiles "CCOC(=O)c1ccccc1" --id C001
@@ -217,16 +217,16 @@ chemwf structure draw --smiles "CCOC(=O)c1ccccc1" --out C001.svg
 
 ## 验收标准
 
-- [ ] 输入合法 SMILES 时能输出 canonical SMILES、分子式、分子量
-- [ ] 输入非法 SMILES 时能给出清晰错误信息
-- [ ] 可以生成带 atom index 的结构图
-- [ ] 至少有 5 个结构相关单元测试
+- [x] 输入合法 SMILES 时能输出 canonical SMILES、分子式、分子量
+- [x] 输入非法 SMILES 时能给出清晰错误信息
+- [x] 可以生成带 atom index 的结构图
+- [x] 至少有 5 个结构相关单元测试（实际 17 个）
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/structure.py`
-- [ ] `tests/test_structure.py`
-- [ ] `examples/processed/compound_structure.svg`
+- [x] `src/chem_workflow/structure.py`
+- [x] `tests/test_structure.py`
+- [x] `examples/processed/compound_structure.svg`
 
 ---
 
