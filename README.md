@@ -35,6 +35,12 @@ uv run chemwf records generate examples/raw/experiment_record_example.yaml
 uv run chemwf records generate examples/raw/experiment_record_example.yaml --language zh --out examples/processed/experiment_record.md
 ```
 
+### Compound 本地归档
+
+```bash
+uv run chemwf init-compound --id C001 --project-dir examples/project_demo --smiles "CCOC(=O)c1ccccc1"
+```
+
 ## 测试
 
 ```bash

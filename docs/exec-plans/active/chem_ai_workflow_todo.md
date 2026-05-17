@@ -506,29 +506,40 @@ ProjectName/
 
 ## TODO
 
-- [ ] 实现 compound folder 初始化
+- [x] 实现 compound folder 初始化
 
 ```bash
 chemwf init-compound --id C001 --smiles "..."
 ```
 
-- [ ] 自动创建目录结构
-- [ ] 自动生成 `metadata.json`
-- [ ] 支持复制原始谱图文件到对应文件夹
-- [ ] 支持自动命名文件
-- [ ] 支持生成 compound summary
+- [x] 自动创建目录结构
+- [x] 自动生成 `metadata.json`
+- [x] 支持复制原始谱图文件到对应文件夹
+- [x] 支持自动命名文件
+- [x] 支持生成 compound summary
 
 ## 验收标准
 
-- [ ] 一条命令可以创建标准化化合物文件夹
-- [ ] 文件夹中包含结构、NMR、records 等子目录
-- [ ] metadata 中包含 compound_id、smiles、formula、molecular_weight、created_at
-- [ ] 重复创建时不会覆盖已有数据，除非显式允许
+- [x] 一条命令可以创建标准化化合物文件夹
+- [x] 文件夹中包含结构、NMR、records 等子目录
+- [x] metadata 中包含 compound_id、smiles、formula、molecular_weight、created_at
+- [x] 重复创建时不会覆盖已有数据，除非显式允许
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/storage.py`
-- [ ] `examples/project_demo/`
+- [x] `src/chem_workflow/storage.py`
+- [x] `tests/test_storage.py`
+- [x] `examples/project_demo/`
+
+## 实施备注（2026-05-17）
+
+- 新增 `chemwf init-compound`，支持 `--smiles` 或 `--structure` 二选一初始化 compound 归档。
+- 默认目录为 `<project-dir>/compounds/<compound_id>/`，包含 `structure/`、`nmr/1H/raw/`、`nmr/13C/raw/`、`ms/raw/`、`ir/raw/`、`records/`、`reports/`。
+- 自动生成 `metadata.json`、`structure.smi`、`structure.mol`、带 atom index 的 `structure_indexed.svg` 和 `reports/summary.md`。
+- 支持 `--copy-nmr-1h`、`--copy-nmr-13c`、`--copy-ms`、`--copy-ir`、`--copy-record` 复制原始/导出文件到标准位置。
+- 默认不覆盖已有 `metadata.json` 或已存在文件；需要显式传 `--overwrite` 才会重写自动生成/复制的文件。
+- 已生成示例项目：`examples/project_demo/compounds/C001/`。
+- 实测：`uv build` 通过；`uv run ruff check .` 全绿；`uv run pytest` 为 92 passed。
 
 ---
 
