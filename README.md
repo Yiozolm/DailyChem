@@ -28,6 +28,13 @@ uv run chemwf nmr parse examples/raw/nmr_multiplet_table_clean_example.tsv --fre
 uv run chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
 ```
 
+### 实验记录生成
+
+```bash
+uv run chemwf records generate examples/raw/experiment_record_example.yaml
+uv run chemwf records generate examples/raw/experiment_record_example.yaml --language zh --out examples/processed/experiment_record.md
+```
+
 ## 测试
 
 ```bash

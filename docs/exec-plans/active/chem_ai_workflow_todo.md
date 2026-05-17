@@ -422,14 +422,14 @@ characterization:
 
 ## TODO
 
-- [ ] 定义 ReactionRecord 数据模型
-- [ ] 支持从 YAML / JSON 读取实验信息
-- [ ] 实现英文实验记录模板
-- [ ] 实现中文实验记录模板
-- [ ] 支持插入 NMR 描述
-- [ ] 支持插入 MS / HRMS 描述
-- [ ] 支持导出 Markdown
-- [ ] 支持导出 Word 文档；可作为后续任务
+- [x] 定义 ReactionRecord 数据模型
+- [x] 支持从 YAML / JSON 读取实验信息
+- [x] 实现英文实验记录模板
+- [x] 实现中文实验记录模板
+- [x] 支持插入 NMR 描述
+- [x] 支持插入 MS / HRMS 描述
+- [x] 支持导出 Markdown
+- [ ] 支持导出 Word 文档；可作为后续任务（P2，当前 Markdown MVP 不阻塞 Phase 5 验收）
 
 ## 第一版模板
 
@@ -444,17 +444,29 @@ HRMS ...
 
 ## 验收标准
 
-- [ ] 输入 YAML 能生成实验记录 Markdown
-- [ ] 输出文本中包含反应步骤、纯化、产率和表征数据
-- [ ] 缺失字段不会导致程序崩溃
-- [ ] 至少有 5 个记录生成测试
+- [x] 输入 YAML 能生成实验记录 Markdown
+- [x] 输出文本中包含反应步骤、纯化、产率和表征数据
+- [x] 缺失字段不会导致程序崩溃
+- [x] 至少有 5 个记录生成测试（实际 9 个）
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/records.py`
-- [ ] `examples/processed/experiment_record.md`
-- [ ] `templates/experiment_record_en.md`
-- [ ] `templates/experiment_record_zh.md`
+- [x] `src/chem_workflow/records.py`
+- [x] `tests/test_records.py`
+- [x] `examples/raw/experiment_record_example.yaml`
+- [x] `examples/processed/experiment_record.md`
+- [x] `templates/experiment_record_en.md`
+- [x] `templates/experiment_record_zh.md`
+
+## 实施备注（2026-05-17）
+
+- 新增 `ReactionRecord` / `ReactionInfo` / `Material` / `YieldInfo` / `Characterization` pydantic 模型。
+- 新增 `PyYAML` 正式依赖，用于可靠读取 `.yaml/.yml`；同时支持 `.json`。
+- 新增 CLI：`chemwf records generate <input.yaml|json> --language en|zh --out record.md`。
+- 英文/中文 Markdown 生成采用“字段缺失则省略相关句子”的 MVP 策略，避免用户样例不完整时崩溃。
+- 表征字段支持 `h1_nmr`、`c13_nmr`、`hrms`、`ms`、`ir`、`uv` 和 `other`；不会凭空生成数据，只插入结构化输入中已有文本。
+- Word 导出保持为 P2：当前验收以 Markdown 为准，后续可接 Documents/Word 工作流。
+- 实测：`uv build` 通过；`uv run ruff check .` 全绿；`uv run pytest` 为 84 passed。
 
 ---
 
