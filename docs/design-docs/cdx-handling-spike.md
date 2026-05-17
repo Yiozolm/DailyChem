@@ -176,18 +176,19 @@ def load_structure(path: Path) -> Chem.Mol:
 - canonical SMILES、分子式（C₆Br₂N₄O₄S）、MW（383.96）与合成路线解析结果完全一致 → 单分子和多分子两条路径给出同一个 canonical SMILES，**结果可重现**
 - 无 warning，无 incomplete labelling
 
-### 用例 3：跨格式一致性 `compound_b_single.{cdx,cdxml,mol,sdf}`（2026-05-17 补充）
+### 用例 3：跨格式一致性 `compound_b_single.{cdx,cdxml,mol,sdf,smi}`（2026-05-17 补充）
 
-同学补提供了 compound B 的 ChemDraw v20 三种导出格式（`.cdxml` / `.mol` / `.sdf`，**ChemDraw v20 的 File→Save As 菜单里没有 `.smi`**）。
+同学补提供了 compound B 的 ChemDraw v20 五种导出格式。重要修正：v20 的 `File → Save As` 菜单确实没有 `.smi` 选项，但 SMILES 可以通过 `Edit → Copy As → SMILES`（剪贴板）拿到，再手动粘成文本文件。同学给的字符串是 Kekulé 形式 `BrC1=C([N+]([O-])=O)C([N+]([O-])=O)=C(Br)C2=NSN=C12`。
 
-| 格式 | canonical SMILES | 分子式 | MW |
-|---|---|---|---|
-| `.cdx`   | `O=[N+]([O-])c1c([N+](=O)[O-])c(Br)c2nsnc2c1Br` | `C6Br2N4O4S` | 383.96 |
-| `.cdxml` | 同上 | 同上 | 同上 |
-| `.mol`   | 同上 | 同上 | 同上 |
-| `.sdf`   | 同上 | 同上 | 同上 |
+| 格式 | 来源 | canonical SMILES（RDKit） | 分子式 | MW |
+|---|---|---|---|---|
+| `.cdx`   | File → Save As | `O=[N+]([O-])c1c([N+](=O)[O-])c(Br)c2nsnc2c1Br` | `C6Br2N4O4S` | 383.96 |
+| `.cdxml` | File → Save As | 同上 | 同上 | 同上 |
+| `.mol`   | File → Save As | 同上 | 同上 | 同上 |
+| `.sdf`   | File → Save As | 同上 | 同上 | 同上 |
+| `.smi`   | Edit → Copy As → SMILES（Kekulé）| 同上 | 同上 | 同上 |
 
-**结论**：4 种格式经 RDKit 解析后给出完全一致的 canonical SMILES / 分子式 / 分子量。MVP 接受任一格式都安全，用户可以用 ChemDraw 最顺手的导出方式。已加 `test_load_structure_cross_format_consistency` 参数化测试做长期保护。
+**结论**：5 种格式经 RDKit 解析后给出完全一致的 canonical SMILES / 分子式 / 分子量。MVP 接受任一格式都安全，用户可以用 ChemDraw 最顺手的导出方式（点 `Save As` 给 `.mol`，或剪贴板 `Copy As SMILES`）。已加 `test_load_structure_cross_format_consistency` 参数化测试覆盖全部 5 种格式。
 
 ### 结论
 
@@ -201,10 +202,10 @@ def load_structure(path: Path) -> Chem.Mol:
 
 - [x] 拿 1 个真实 v20 导出 `.cdx`，跑 `Chem.MolsFromCDXMLFile`，验证：
   - [x] 能解析出 `Mol`
-  - [x] canonical SMILES 与 v20 其他导出格式（.cdxml/.mol/.sdf）一致；ChemDraw v20 菜单里**无 `.smi` 选项**，对照 `.smi` 不再追
+  - [x] canonical SMILES 与 v20 其他导出格式（.cdxml/.mol/.sdf/.smi）一致；ChemDraw v20 的 `.smi` 不在 Save As 菜单，但 `Edit → Copy As → SMILES` 可走剪贴板
   - [x] 分子式、分子量与其他格式一致（跨格式对照见用例 3）
   - ~~立体化学（手性、E/Z）是否保留~~ **不做**：同学反馈当前项目用不到含手性中心的化合物；如果后续遇到再补验证。
-- [x] 同一个化合物分别用 v20 导出 `.cdx`、`.cdxml`、`.mol`、`.sdf` 四种格式（v20 的 Save As 菜单无 `.smi` 选项），确认四种路径给出同一 canonical SMILES（见用例 3）。
+- [x] 同一个化合物分别用 v20 导出 `.cdx`、`.cdxml`、`.mol`、`.sdf` 四种 Save As 格式 + `.smi`（通过 Edit→Copy As→SMILES 剪贴板），确认 5 种路径给出同一 canonical SMILES（见用例 3）。
 - [x] 试一个包含反应箭头/多分子的 `.cdx`，确认 RDKit 返回多个 `Mol`，且我们的"取首个"策略是否合理 → 结论：单化合物模式取首个 OK；合成路线模式需要后续设计分类策略
 - [ ] 在 Linux / Windows 上分别 `uv sync` 后跑 `Chem.HasChemDrawCDXSupport()`，确认跨平台一致返回 True（如果有某个平台 False，则需要更明显的安装文档）。
 

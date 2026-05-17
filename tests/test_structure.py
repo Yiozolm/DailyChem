@@ -20,6 +20,7 @@ COMPOUND_B_CDX = FIXTURES / "compound_b_single.cdx"
 COMPOUND_B_CDXML = FIXTURES / "compound_b_single.cdxml"
 COMPOUND_B_MOL = FIXTURES / "compound_b_single.mol"
 COMPOUND_B_SDF = FIXTURES / "compound_b_single.sdf"
+COMPOUND_B_SMI = FIXTURES / "compound_b_single.smi"
 SYNTHESIS_ROUTE_CDX = FIXTURES / "synthesis_route_cys.cdx"
 
 # 来自 docs/design-docs/cdx-handling-spike.md 的预期值
@@ -65,11 +66,15 @@ def test_load_structure_cdx_multi_compound_warns():
 
 @pytest.mark.parametrize(
     "fixture",
-    [COMPOUND_B_CDX, COMPOUND_B_CDXML, COMPOUND_B_MOL, COMPOUND_B_SDF],
-    ids=["cdx", "cdxml", "mol", "sdf"],
+    [COMPOUND_B_CDX, COMPOUND_B_CDXML, COMPOUND_B_MOL, COMPOUND_B_SDF, COMPOUND_B_SMI],
+    ids=["cdx", "cdxml", "mol", "sdf", "smi"],
 )
 def test_load_structure_cross_format_consistency(fixture):
-    """compound B 的 4 种 ChemDraw v20 导出格式应给出同一 canonical SMILES。"""
+    """compound B 的 5 种 ChemDraw v20 导出格式应给出同一 canonical SMILES。
+
+    SMILES 是同学从 ChemDraw v20 `Edit → Copy As → SMILES` 复制出来的
+    Kekulé 形式，RDKit canonicalize 后应与其他 4 种格式一致。
+    """
     info = mol_info(load_structure(fixture))
     assert info["smiles"] == COMPOUND_B_SMILES
     assert info["formula"] == COMPOUND_B_FORMULA
