@@ -145,17 +145,54 @@ def load_structure(path: Path) -> Chem.Mol:
 3. 失败时错误信息直接告诉用户怎么导出，避免卡住。
 4. MVP 先支持"一个 `.cdx` 文件一个目标分子"，多分子 `.cdx` 留到后续。
 
+## 实战验证（2026-05-17）
+
+拿到了同学提供的两份脱敏 `.cdx` 在本机（macOS arm64 / Python 3.13.5 / rdkit 2026.3.1）跑过。
+
+### 用例 1：多分子合成路线 `data/raw/synthesis route(cys).cdx`（50 KB）
+
+`Chem.MolsFromCDXMLFile` 默认 `Auto` 模式直接解析二进制 `.cdx`，返回 31 个 `Mol`。
+
+按"heavy_atoms ≥ 3 且 SMILES 不含 `*`"过滤后剩 13 个，覆盖：
+
+- BTD 芳杂环骨架的溴化 / 硝化 / 氨基化 / 噻吩 cross-coupling 中间体
+- Pd-coupling 试剂（pinacol boronate、Stille 试剂）
+- 季铵正离子（电荷保留）
+- 最终丙烯酸酯单体（51 重原子，MW 733）
+
+观察到的告警（不致命）：
+
+- `Unhandled generic nickname: G` × 2 —— ChemDraw 里有 `G` 通用基团标签，RDKit 不识别
+- `Incomplete atom labelling, cannot make bond` × 7 —— 因为上一项导致的局部键缺失
+
+被过滤掉的 18 项主要是：单原子标签（B/C/F/H/Fe/I）、试剂注释带 `*` 通配（HNO₃、AcOH、NaNO₂、TfOH、Pd(PPh₃)₄、`Y-I`）。
+**注意**：试剂/溶剂注释虽然被简单过滤剔除，但化学家在实验记录里是要这些信息的；合成路线模式（后续 P1）需要更聪明的分类策略，单化合物模式 MVP 不受影响。
+
+### 用例 2：单化合物 `data/raw/1.cdx`（3 KB）
+
+合成路线里的 compound B（同学的命名）单独存为 `.cdx` 后：
+
+- `MolsFromCDXMLFile` 返回**正好 1 个** `Mol`
+- canonical SMILES、分子式（C₆Br₂N₄O₄S）、MW（383.96）与合成路线解析结果完全一致 → 单分子和多分子两条路径给出同一个 canonical SMILES，**结果可重现**
+- 无 warning，无 incomplete labelling
+
+### 结论
+
+- 方案 A（RDKit 原生 CDX）在真实多分子合成路线和单化合物两个用例上均验证通过。
+- 单化合物 MVP 路径直接走 `mols = MolsFromCDXMLFile(path); mols[0]`；当 `len(mols) > 1` 时给出警告并取首个。
+- 多分子 / 合成路线模式列入 Phase 2 之后的扩展。
+
 ## 待办：用真实样例验证
 
-调研结束后，还有几件必须用真实文件验证的事，等同学提供脱敏 `.cdx` 后做：
+调研结束后，几件必须用真实文件验证的事：
 
-- [ ] 拿 1 个真实 v20 导出 `.cdx`，跑 `Chem.MolsFromCDXMLFile`，验证：
-  - [ ] 能解析出 `Mol`
-  - [ ] canonical SMILES 与 ChemDraw "Save As SMILES" 输出一致
-  - [ ] 分子式、分子量与 ChemDraw 标注一致
-  - [ ] 立体化学（手性、E/Z）是否保留
+- [x] 拿 1 个真实 v20 导出 `.cdx`，跑 `Chem.MolsFromCDXMLFile`，验证：
+  - [x] 能解析出 `Mol`
+  - [ ] canonical SMILES 与 ChemDraw "Save As SMILES" 输出一致（**待同学提供 `.smi` 导出做交叉对照**）
+  - [ ] 分子式、分子量与 ChemDraw 标注一致（**待同学提供 ChemDraw 截图或标注**）
+  - [ ] 立体化学（手性、E/Z）是否保留（**当前样例无手性中心，待含手性样例**）
 - [ ] 同一个化合物分别用 v20 导出 `.cdx`、`.cdxml`、`.mol`、`.sdf`、`.smi`，确认五种路径给出同一个 canonical SMILES。
-- [ ] 试一个包含反应箭头/多分子的 `.cdx`，确认 RDKit 返回多个 `Mol`，且我们的"取首个"策略是否合理（可能需要让用户指定 compound_id）。
+- [x] 试一个包含反应箭头/多分子的 `.cdx`，确认 RDKit 返回多个 `Mol`，且我们的"取首个"策略是否合理 → 结论：单化合物模式取首个 OK；合成路线模式需要后续设计分类策略
 - [ ] 在 Linux / Windows 上分别 `uv sync` 后跑 `Chem.HasChemDrawCDXSupport()`，确认跨平台一致返回 True（如果有某个平台 False，则需要更明显的安装文档）。
 
 ## 对 Phase 2 计划的影响

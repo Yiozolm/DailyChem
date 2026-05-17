@@ -193,13 +193,14 @@ class Compound:
   - [ ] 从文件读取结构
   - [ ] 转换为 canonical SMILES
   - [ ] 提取分子基本信息
-- [ ] 评估并设计 `.cdx` 输入路径
+- [x] 评估并设计 `.cdx` 输入路径（结论见 `docs/design-docs/cdx-handling-spike.md`）
 
-  - [ ] 收集至少 1 个真实脱敏 `.cdx` 样例
-  - [ ] 验证 ChemDraw v20 导出 `.mol` / `.sdf` / SMILES 是否保留关键结构信息
-  - [ ] 评估 OpenBabel 或 CDXML 中间格式作为 `.cdx` 预处理方案
-  - [ ] 决定 CLI 是否直接接受 `.cdx`
-  - [ ] 如果暂不直接解析 `.cdx`，为 `.cdx` 输入提供清晰错误提示和导出说明
+  - [x] 收集至少 1 个真实脱敏 `.cdx` 样例（合成路线 + 单化合物各一份）
+  - [ ] 验证 ChemDraw v20 导出 `.mol` / `.sdf` / SMILES 是否保留关键结构信息（待同学提供多格式导出做交叉对照）
+  - [x] 评估 OpenBabel 或 CDXML 中间格式作为 `.cdx` 预处理方案 → 不需要：rdkit 2026.3.1 PyPI 轮子已内置 ChemDraw 解析（`HasChemDrawCDXSupport() = True`）
+  - [x] 决定 CLI 是否直接接受 `.cdx` → 是。直接走 `Chem.MolsFromCDXMLFile`（默认 Auto 嗅探 .cdx vs .cdxml）
+  - [x] 单化合物 MVP 取首个 Mol；`len(mols) > 1` 时给警告但取首个；合成路线模式列入 Phase 2 之后的扩展
+  - [ ] 如果某平台 `HasChemDrawCDXSupport()` 为 False，错误提示引导用户从 ChemDraw 手动导出 `.mol/.sdf`（保底）
 - [ ] 生成带原子编号的结构图
 
   - [ ] 输出 SVG
