@@ -15,3 +15,8 @@
 ## Current User-Facing Docs
 
 - [`ui_usage.md`](ui_usage.md): Phase 7 Streamlit 本地 Web UI 使用说明。
+
+## Current Active Exec Plans
+
+- [`exec-plans/active/chem_ai_workflow_todo.md`](exec-plans/active/chem_ai_workflow_todo.md): 化学工作流自动化项目总 TODO。
+- [`exec-plans/active/phase9_openai_sdk_plan.md`](exec-plans/active/phase9_openai_sdk_plan.md): Phase 9 OpenAI SDK LLM 辅助层执行计划。

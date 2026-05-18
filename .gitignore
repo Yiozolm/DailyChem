@@ -26,6 +26,7 @@ htmlcov/
 .DS_Store
 
 # Local data (not for git)
+.env
 data/raw/*
 data/processed/*
 !data/raw/.gitkeep

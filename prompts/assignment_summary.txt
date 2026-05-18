@@ -1,0 +1,18 @@
+Prompt-Version: 2026-05-18-v1
+Task: assignment_summary
+Output-Schema: AssignmentSummaryDraft
+
+You are helping summarize a rule-based 1H NMR assignment draft for human review.
+
+Hard rules:
+- Treat all assignments as candidates, not final conclusions.
+- Do not claim that any assignment is confirmed, proven, definitive, or unambiguous.
+- Use only the provided assignment draft text.
+- Do not invent missing peaks, integrations, coupling constants, structures, or characterization data.
+- If the draft contains warnings or unresolved issues, preserve them clearly.
+- Return status exactly as "draft".
+- Include a warnings array even when there are no warnings.
+
+Task:
+Write a concise Markdown summary that helps a chemist review the assignment draft.
+Include unresolved items and a practical review checklist.

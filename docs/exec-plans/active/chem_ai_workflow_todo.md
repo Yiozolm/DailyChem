@@ -704,8 +704,8 @@ alkene_H:
 
 ## 适合 LLM 的任务
 
-- [ ] 把结构化实验数据转成自然语言实验记录
-- [ ] 把 NMR assignment 草稿整理成可读解释
+- [x] 把结构化实验数据转成自然语言实验记录
+- [x] 把 NMR assignment 草稿整理成可读解释
 - [ ] 根据异常检查结果生成提醒
 - [ ] 把中文实验记录翻译成英文
 - [ ] 把英文实验记录润色成论文 supporting information 风格
@@ -719,11 +719,11 @@ alkene_H:
 
 ## TODO
 
-- [ ] 设计 LLM 输入 JSON schema
-- [ ] 设计 prompt 模板
-- [ ] 明确 LLM 输出必须包含 warning 字段
-- [ ] 对 LLM 输出做结构化校验
-- [ ] 保存 LLM 生成记录，方便回溯
+- [x] 设计 LLM 输入 JSON schema
+- [x] 设计 prompt 模板
+- [x] 明确 LLM 输出必须包含 warning 字段
+- [x] 对 LLM 输出做结构化校验
+- [x] 保存 LLM 生成记录，方便回溯
 - [ ] 添加人工确认步骤
 
 ## 示例 schema
@@ -753,16 +753,34 @@ alkene_H:
 
 ## 验收标准
 
-- [ ] LLM 只基于结构化输入生成文本
-- [ ] LLM 不凭空编造 NMR / MS 数据
-- [ ] 输出可被 JSON parser 或 pydantic 校验
-- [ ] 所有 LLM 生成文本都标记为 draft
+- [x] LLM 只基于结构化输入生成文本
+- [x] LLM 不凭空编造 NMR / MS 数据
+- [x] 输出可被 JSON parser 或 pydantic 校验
+- [x] 所有 LLM 生成文本都标记为 draft
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/llm.py`
-- [ ] `prompts/experiment_record_en.txt`
-- [ ] `prompts/assignment_summary.txt`
+- [x] `src/chem_workflow/llm.py`
+- [x] `prompts/experiment_record_en.txt`
+- [x] `prompts/assignment_summary.txt`
+
+## 实施备注（2026-05-18）
+
+- 新增 OpenAI SDK 依赖：`openai>=2,<3`。
+- 新增内置 `.env` loader：`chemwf llm ...` 会默认从当前目录向上查找 `.env`，读取 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `CHEMWF_OPENAI_MODEL`；已有环境变量不会被 `.env` 覆盖，也不会打印 secret。
+- 新增 `src/chem_workflow/llm.py`，封装 `OpenAI().responses.parse(...)` structured-output 流程；`openai` 懒加载，默认单元测试不需要真实 API key 或网络。
+- 新增 `src/chem_workflow/llm_models.py` 和 `src/chem_workflow/llm_cli.py`，分别承载 LLM schema/settings 与 Typer 子命令，避免单文件过大。
+- `OpenAISettings` 支持 `model`、`base_url`、`timeout_seconds`、`max_output_tokens`、`store`；`base_url` 优先级为 CLI `--base-url` → `OPENAI_BASE_URL` → `CHEMWF_OPENAI_BASE_URL` → SDK 默认 endpoint。
+- `OpenAISettings` 增加 `api_mode`，支持 `responses` 与 `chat-completions`。如果 OpenAI-compatible gateway 不支持 `/responses` 导致 404，可用 `--api-mode chat-completions` 或 `CHEMWF_OPENAI_API_MODE=chat-completions` 切换到 `/chat/completions`。
+- DeepSeek 兼容：`chat-completions` 模式改用 `client.chat.completions.create(...)`，支持 `DEEPSEEK_API_KEY`、`--api-key-env DEEPSEEK_API_KEY`、`--reasoning-effort high` 和 `--enable-thinking`。
+- 新增 prompt 模板：`experiment_record_en.txt`、`assignment_summary.txt`，并预留 `warning_summary.txt`、`polish_record.txt`。
+- 新增 CLI：
+  - `chemwf llm draft-record`
+  - `chemwf llm summarize-assignment`
+  - 两者均支持 `--dry-run-prompt`、`--model`、`--base-url`、`--api-mode`、`--out`、`--save-run`。
+- LLM 输出 schema 均要求 `status: "draft"` 和 `warnings`；实验记录 draft 增加 conservative spectroscopy 数值检查，assignment summary 增加过度确定措辞 warning。
+- 当前尚未接入 Streamlit UI，`summarize-warnings` / `polish-record` 也暂未正式接线；人工确认状态持久化留作下一步。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 117 passed；`uv run chemwf llm draft-record examples/raw/experiment_record_example.yaml --dry-run-prompt` 可输出 prompt/input 预览。
 
 ---
 

@@ -15,6 +15,7 @@ from chem_workflow.assignment import (
     load_assignment_rules,
     render_assignment_draft,
 )
+from chem_workflow.llm_cli import llm_app
 from chem_workflow.nmr import (
     NMRInputError,
     parse_mestrenova_multiplet_table,
@@ -54,6 +55,8 @@ app.add_typer(nmr_app, name="nmr")
 
 records_app = typer.Typer(help="实验记录相关命令", no_args_is_help=True)
 app.add_typer(records_app, name="records")
+
+app.add_typer(llm_app, name="llm")
 
 
 @app.callback()

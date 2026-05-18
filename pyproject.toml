@@ -10,6 +10,7 @@ dependencies = [
     "typer>=0.12",
     "streamlit>=1.35",
     "pyyaml>=6.0.3",
+    "openai>=2,<3",
 ]
 
 [project.scripts]
