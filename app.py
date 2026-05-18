@@ -842,7 +842,7 @@ def _apply_theme() -> None:
             color: var(--dailychem-ink);
           }
           .block-container {
-            padding-top: 2.2rem;
+            padding-top: 4.5rem;
             max-width: 1180px;
           }
           .eyebrow {
