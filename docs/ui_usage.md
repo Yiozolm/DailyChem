@@ -7,6 +7,24 @@ Demo 截图：[`docs/generated/phase7_streamlit_demo.png`](generated/phase7_stre
 
 ## 启动
 
+推荐使用一键启动脚本，不需要记住完整的 Streamlit 命令。
+
+Mac / Linux：
+
+```bash
+bash run.sh
+```
+
+Windows：
+
+双击项目根目录下的 `run.bat`，或在终端运行：
+
+```bat
+run.bat
+```
+
+开发者也可以使用原始命令：
+
 ```bash
 uv run streamlit run app.py
 ```

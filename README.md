@@ -14,6 +14,27 @@ uv sync
 
 ## 运行
 
+### 启动图形界面（推荐给非程序员用户）
+
+Mac / Linux：
+
+```bash
+bash run.sh
+```
+
+Windows：
+
+双击 `run.bat`，或在终端运行：
+
+```bat
+run.bat
+```
+
+默认会在浏览器打开 DailyChem 页面。若没有自动打开，可访问终端提示的本地地址，
+通常是 `http://localhost:8501`。
+
+### 命令行工具（开发者）
+
 ```bash
 uv run chemwf --help
 uv run chemwf version
@@ -41,13 +62,13 @@ uv run chemwf records generate examples/raw/experiment_record_example.yaml --lan
 uv run chemwf init-compound --id C001 --project-dir examples/project_demo --smiles "CCOC(=O)c1ccccc1"
 ```
 
-### 本地 Web UI
+### 本地 Web UI（开发者原始命令）
 
 ```bash
 uv run streamlit run app.py
 ```
 
-使用说明见 [`docs/ui_usage.md`](docs/ui_usage.md)。
+更详细的界面使用说明见 [`docs/ui_usage.md`](docs/ui_usage.md)。
 
 ### 1H NMR assignment 草稿
 
