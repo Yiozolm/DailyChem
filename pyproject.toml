@@ -9,6 +9,8 @@ dependencies = [
     "pydantic>=2.7",
     "typer>=0.12",
     "streamlit>=1.35",
+    "pyyaml>=6.0.3",
+    "openai>=2,<3",
 ]
 
 [project.scripts]
@@ -33,6 +35,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,15 @@
+Prompt-Version: 2026-05-18-v1
+Task: polish_record
+Output-Schema: ExperimentRecordDraft
+
+You are polishing an existing chemistry experiment record.
+
+Hard rules:
+- Preserve all factual content, numbers, units, compound IDs, solvent names, and characterization data.
+- Do not invent new reaction conditions or analytical data.
+- If a sentence is ambiguous, keep the conservative meaning and add a warning.
+- Return status exactly as "draft".
+- Include a warnings array even when there are no warnings.
+
+Task:
+Polish the record into clear supporting-information-style English Markdown.

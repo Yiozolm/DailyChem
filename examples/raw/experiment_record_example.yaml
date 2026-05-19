@@ -1,0 +1,25 @@
+compound_id: C001
+product_name: ethyl benzoate
+smiles: CCOC(=O)c1ccccc1
+reaction:
+  starting_materials:
+    - name: benzoic acid
+      amount: 1.0 mmol
+    - name: ethanol
+      amount: 5 mL
+  reagents:
+    - name: sulfuric acid
+      amount: catalytic
+  solvent: ethanol
+  temperature: reflux
+  time: 4 h
+workup: diluted with water and extracted with ethyl acetate
+purification: column chromatography
+appearance: colorless oil
+yield:
+  mass: 120 mg
+  percent: 63%
+characterization:
+  h1_nmr: 1H NMR (400 MHz, CDCl3) δ 8.56 (s, 2H), 7.51 (s, 2H), 5.17 (s, 2H), 3.11 (s, 9H), 2.72 (s, 2H), 1.24 (s, 2H).
+  c13_nmr: 13C NMR (101 MHz, CDCl3) δ 165.2, 132.1, 129.5, 128.4, 52.1.
+  hrms: HRMS (ESI) m/z calculated for C9H10O2Na [M + Na]+ 173.0573, found 173.0570.
