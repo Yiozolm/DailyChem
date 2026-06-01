@@ -1,5 +1,9 @@
 # Project Agent Instructions
 
+## 项目概述
+
+该项目是由懂编程但不懂化学的开发者（我），为懂化学但不懂编程的同学开发可用的工具。
+
 ## 项目文档目录
 
 项目文档统一放在 `docs/` 下，入口索引是 `docs/README.md`。后续 agent 应先从本节和 `docs/README.md` 了解当前文档结构。
