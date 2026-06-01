@@ -801,10 +801,10 @@ alkene_H:
 
 ## MS / HRMS TODO
 
-- [ ] 定义 MS 数据模型
-- [ ] 支持 calculated mass 和 found mass
-- [ ] 自动计算 ppm error
-- [ ] 自动生成 HRMS 描述
+- [x] 定义 MS 数据模型
+- [x] 支持 calculated mass 和 found mass
+- [x] 自动计算 ppm error
+- [x] 自动生成 HRMS 描述
 
 ```text
 HRMS (ESI) m/z calculated for C9H10O2Na [M + Na]+ 173.0573, found 173.0570.
@@ -812,9 +812,9 @@ HRMS (ESI) m/z calculated for C9H10O2Na [M + Na]+ 173.0573, found 173.0570.
 
 ## IR TODO
 
-- [ ] 支持 IR peak list
-- [ ] 标准化单位 cm⁻¹
-- [ ] 自动生成 IR 描述
+- [x] 支持 IR peak list
+- [x] 标准化单位 cm⁻¹
+- [x] 自动生成 IR 描述
 
 ```text
 IR (neat) νmax 3050, 2920, 1715, 1600, 1450 cm⁻¹.
@@ -822,9 +822,9 @@ IR (neat) νmax 3050, 2920, 1715, 1600, 1450 cm⁻¹.
 
 ## UV TODO
 
-- [ ] 支持 λmax
-- [ ] 支持 solvent
-- [ ] 支持 absorbance 或 epsilon
+- [x] 支持 λmax
+- [x] 支持 solvent
+- [x] 支持 absorbance 或 epsilon
 
 ```text
 UV-vis (MeOH) λmax 254 nm.
@@ -832,16 +832,30 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## 验收标准
 
-- [ ] MS / HRMS 可以生成标准描述
-- [ ] IR 可以生成标准描述
-- [ ] UV 可以生成标准描述
-- [ ] 所有新增模块都有测试
+- [x] MS / HRMS 可以生成标准描述
+- [x] IR 可以生成标准描述
+- [x] UV 可以生成标准描述
+- [x] 所有新增模块都有测试
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/ms.py`
-- [ ] `src/chem_workflow/ir.py`
-- [ ] `src/chem_workflow/uv.py`
+- [x] `src/chem_workflow/ms.py`
+- [x] `src/chem_workflow/ir.py`
+- [x] `src/chem_workflow/uv.py`
+
+## 实施备注（2026-06-01）
+
+- 三个模块（`ms.py` / `ir.py` / `uv.py`）均沿用 NMR 的「数据模型（pydantic BaseModel）+ parser/calculator + formatter + 模块内 Typer sub-app」结构；`cli.py` 仅 import + `add_typer`（`ms` / `ir` / `uv`）。
+- HRMS calculated mass 支持两种来源（同学反馈两种都要）：
+  - 自动：`chemwf ms hrms --smiles "..." --adduct "[M+Na]+"`，用 RDKit `ExactMolWt` + 单同位素原子质量小表（H/C/N/O/F/Na/K/Cl）算 ion m/z 与 ion formula。
+  - 手动：`chemwf ms hrms --ion-formula C9H10O2Na --calc 173.0573`，只算 ppm + 格式化。
+- 支持 adduct（MVP n=1, z=1）：`[M+H]+`、`[M+Na]+`、`[M+K]+`、`[M+NH4]+`、`[M-H]-`、`[M+H-H2O]+`；未知 adduct 给出已支持列表的清晰报错。
+- ion formula 渲染采用 HRMS 习惯排序（C、H 在前，杂原子字母序，阳离子 Na/K 在末），输出 `C9H10O2Na` 而非严格 Hill 的 `C9H10NaO2`；实测 ethyl benzoate `[M+Na]+` = 173.0573，与样例一致。
+- IR / UV parser 容错解析逗号/空白/换行分隔列表；IR 默认按波数从高到低，UV 默认按 λmax 从低到高；IR 可选保留强度标签，UV 可选 ε。
+- CLI 统一支持 `--inline` / 文件路径、`--json`、`--out`。
+- 样例：`examples/raw/{ms_hrms_example.txt, ir_peaks_example.txt, uv_peaks_example.txt}`；`examples/processed/{hrms_report.txt, ir_report.txt, uv_report.txt}`。
+- Streamlit UI 接入留待下一轮（本轮按计划 CLI 优先）。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 159 passed, 1 skipped。
 
 ---
 

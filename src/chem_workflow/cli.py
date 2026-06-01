@@ -15,7 +15,9 @@ from chem_workflow.assignment import (
     load_assignment_rules,
     render_assignment_draft,
 )
+from chem_workflow.ir import ir_app
 from chem_workflow.llm_cli import llm_app
+from chem_workflow.ms import ms_app
 from chem_workflow.nmr import (
     NMRInputError,
     parse_mestrenova_multiplet_table,
@@ -44,6 +46,7 @@ from chem_workflow.structure import (
     mol_info,
     parse_smiles,
 )
+from chem_workflow.uv import uv_app
 
 app = typer.Typer(help="化学工作流自动化工具 (chemwf)", no_args_is_help=True)
 
@@ -57,6 +60,10 @@ records_app = typer.Typer(help="实验记录相关命令", no_args_is_help=True)
 app.add_typer(records_app, name="records")
 
 app.add_typer(llm_app, name="llm")
+
+app.add_typer(ms_app, name="ms")
+app.add_typer(ir_app, name="ir")
+app.add_typer(uv_app, name="uv")
 
 
 @app.callback()
