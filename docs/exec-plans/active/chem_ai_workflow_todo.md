@@ -867,13 +867,13 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## 本地历史数据检索
 
-- [ ] 建立 SQLite 数据库
-- [ ] 保存 compound metadata
-- [ ] 保存 NMR / MS / IR 数据
-- [ ] 支持按 compound ID 搜索
-- [ ] 支持按 SMILES 搜索
-- [ ] 支持按子结构搜索
-- [ ] 支持按相似度搜索
+- [x] 建立 SQLite 数据库
+- [x] 保存 compound metadata
+- [x] 保存 NMR / MS / IR 数据
+- [x] 支持按 compound ID 搜索
+- [x] 支持按 SMILES 搜索
+- [x] 支持按子结构搜索
+- [x] 支持按相似度搜索
 
 ## 文献检索；后续增强
 
@@ -884,15 +884,26 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## 验收标准
 
-- [ ] 可以检索本地做过的化合物
-- [ ] 可以根据结构相似度找到历史样例
-- [ ] 可以复用历史实验记录模板
+- [x] 可以检索本地做过的化合物
+- [x] 可以根据结构相似度找到历史样例
+- [ ] 可以复用历史实验记录模板（检索能定位到历史化合物及其谱学文本；"模板复用"留到文献检索 / Phase 12）
 
 ## 可交付物
 
-- [ ] `src/chem_workflow/search.py`
-- [ ] `src/chem_workflow/database.py`
-- [ ] `data/chem_workflow.sqlite`
+- [x] `src/chem_workflow/search.py`
+- [x] `src/chem_workflow/database.py`
+- [x] `data/chem_workflow.sqlite`（运行时按需生成，已加入 `.gitignore`）
+
+## 实施备注（2026-06-01）
+
+- 新增 `database.py`（本地 SQLite 历史库）和 `search.py`（结构检索），仅用标准库 `sqlite3` + 已有 RDKit，无新增依赖。
+- Schema 两张表：`compounds`（compound_id 唯一）+ `spectra`（外键级联，存 1H/13C/HRMS/MS/IR/UV 文本）。`upsert_compound` 按 compound_id 幂等（先删 spectra 再重插）。
+- 数据入库双通道：`chemwf db import` 扫描 `compounds/*/metadata.json`（复用 storage 写出的字段，并尽力读取已生成的谱学文本）；`chemwf db add` 手动单条入库。
+- 检索：子结构用 `Chem.MolFromSmarts`→`MolFromSmiles` 回退 + `HasSubstructMatch`；相似度用 `rdFingerprintGenerator` Morgan(r=2, 2048) + Tanimoto，过阈值后降序取 top_k。指纹不持久化，检索时即时重算（稳健、对本地规模足够）；DB 里非法 SMILES 脏数据自动跳过。
+- CLI：`chemwf db add / import / list / get / search`，通用 `--db`（默认 `data/chem_workflow.sqlite`）。
+- Streamlit 新增「History Search」页（第 7 页）：入库（从归档导入 / 添加当前化合物）+ 检索（子结构 / 相似度，结果用 dataframe 展示）。
+- 文献检索（DOI / 文献 NMR 对比 / 相似结构历史谱图参考）按计划留待下一轮。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 183 passed, 1 skipped。
 
 ---
 

@@ -9,6 +9,7 @@ uv run streamlit run app.py
 
 from __future__ import annotations
 
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Literal, cast
@@ -20,6 +21,14 @@ from chem_workflow.assignment import (
     assign_1h_nmr,
     assignment_rows_for_review,
     render_assignment_draft,
+)
+from chem_workflow.database import (
+    DatabaseError,
+    all_compounds,
+    connect,
+    make_record,
+    scan_archive,
+    upsert_compound,
 )
 from chem_workflow.ir import IRInputError, format_ir, parse_ir_peaks
 from chem_workflow.llm import (
@@ -58,6 +67,7 @@ from chem_workflow.records import (
     YieldInfo,
     render_experiment_record,
 )
+from chem_workflow.search import SearchError, similarity_search, substructure_search
 from chem_workflow.storage import RawFileGroup, StorageError, init_compound_archive
 from chem_workflow.structure import (
     StructureInputError,
@@ -100,6 +110,7 @@ def main() -> None:
             "4 · Experiment Record",
             "5 · Project Export",
             "6 · NMR Assignment",
+            "7 · History Search",
         ),
     )
 
@@ -113,8 +124,10 @@ def main() -> None:
         _experiment_record_page()
     elif page.startswith("5"):
         _project_export_page()
-    else:
+    elif page.startswith("6"):
         _assignment_page()
+    else:
+        _history_search_page()
 
 
 def _render_sidebar() -> None:
@@ -131,6 +144,7 @@ def _render_sidebar() -> None:
         - 记录：Markdown 初稿
         - 导出：标准 compound 文件夹 + zip
         - Assignment：候选归属 + 人工确认
+        - 历史检索：子结构 / 相似度（本地 SQLite）
         """
     )
 
@@ -870,6 +884,125 @@ def _render_assignment_summary_section(markdown: str) -> None:
             file_name=f"{_safe_state_file_stem('compound_id')}_assignment_summary.md",
             checkbox_key="assignment_llm_reviewed",
         )
+
+
+def _history_search_page() -> None:
+    _page_header(
+        "History Search",
+        "把做过的化合物沉淀到本地 SQLite 库，按子结构 / 相似度检索历史样例。",
+    )
+
+    db_path = st.text_input(
+        "数据库路径",
+        value=_state_text("history_db_path", "data/chem_workflow.sqlite"),
+        key="history_db_path",
+    )
+
+    ingest_tab, search_tab = st.tabs(["入库", "检索"])
+    with ingest_tab:
+        _history_ingest_section(db_path)
+    with search_tab:
+        _history_search_section(db_path)
+
+
+def _history_ingest_section(db_path: str) -> None:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**从归档批量导入**")
+        project_dir = st.text_input("项目根目录", value=".", key="history_project_dir")
+        if st.button("扫描归档并导入", width="stretch", key="history_import"):
+            try:
+                records = scan_archive(project_dir)
+                with closing(connect(db_path)) as conn:
+                    for record in records:
+                        upsert_compound(conn, record)
+                st.success(f"已导入 {len(records)} 个化合物。")
+            except DatabaseError as error:
+                st.error(str(error))
+
+    with col_b:
+        st.markdown("**添加当前化合物**")
+        compound_id = st.text_input(
+            "Compound ID", value=_state_text("compound_id", "C001"), key="history_add_id"
+        )
+        smiles = st.text_input(
+            "SMILES", value=_state_text("compound_smiles"), key="history_add_smiles"
+        )
+        if st.button("加入历史库", type="primary", width="stretch", key="history_add"):
+            if optional_text(smiles) is None:
+                st.warning("请提供 SMILES。")
+            else:
+                _handle_history_add(db_path, compound_id=compound_id, smiles=smiles)
+
+
+def _handle_history_add(db_path: str, *, compound_id: str, smiles: str) -> None:
+    spectra = {
+        "1H": _state_text("nmr_1h_text"),
+        "13C": _state_text("nmr_13c_text"),
+        "HRMS": _state_text("hrms_text"),
+        "IR": _state_text("ir_text"),
+        "UV": _state_text("uv_text"),
+    }
+    try:
+        record = make_record(
+            compound_id=compound_id,
+            smiles=smiles,
+            spectra={k: v for k, v in spectra.items() if v},
+        )
+        with closing(connect(db_path)) as conn:
+            upsert_compound(conn, record)
+        st.success(
+            f"已写入 {record.compound_id}（{record.formula}, MW {record.molecular_weight}）。"
+        )
+    except DatabaseError as error:
+        st.error(str(error))
+
+
+def _history_search_section(db_path: str) -> None:
+    query = st.text_input(
+        "查询 SMILES / SMARTS",
+        value=_state_text("compound_smiles", "c1ccccc1"),
+        key="history_query",
+    )
+    mode = st.radio(
+        "检索方式", ("子结构", "相似度"), horizontal=True, key="history_search_mode"
+    )
+    threshold = st.slider(
+        "相似度阈值", min_value=0.0, max_value=1.0, value=0.7, step=0.05, key="history_threshold"
+    )
+
+    if st.button("检索", type="primary", width="stretch", key="history_search_run"):
+        _handle_history_search(db_path, query=query, mode=mode, threshold=threshold)
+
+    rows = st.session_state.get("history_search_rows")
+    if isinstance(rows, list):
+        if rows:
+            st.dataframe(rows, width="stretch")
+        else:
+            st.info("没有匹配的历史化合物。")
+
+
+def _handle_history_search(db_path: str, *, query: str, mode: str, threshold: float) -> None:
+    try:
+        with closing(connect(db_path)) as conn:
+            records = all_compounds(conn)
+        if mode == "子结构":
+            hits = substructure_search(records, query)
+        else:
+            hits = similarity_search(records, query, threshold=threshold)
+        st.session_state["history_search_rows"] = [
+            {
+                "compound_id": hit.compound.compound_id,
+                "formula": hit.compound.formula or "",
+                "MW": hit.compound.molecular_weight,
+                "score": hit.score,
+                "smiles": hit.compound.smiles,
+            }
+            for hit in hits
+        ]
+        st.success(f"找到 {len(hits)} 个匹配。")
+    except (DatabaseError, SearchError) as error:
+        st.error(str(error))
 
 
 def _handle_project_export(

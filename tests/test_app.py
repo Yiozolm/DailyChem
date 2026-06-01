@@ -56,3 +56,19 @@ def test_streamlit_app_generates_hrms_text() -> None:
     assert "HRMS 文本已生成。" in [message.value for message in app.success]
     codes = " ".join(code.value for code in app.code)
     assert "HRMS (ESI)" in codes
+
+
+def test_streamlit_app_history_search(tmp_path) -> None:  # noqa: ANN001
+    db_path = str(tmp_path / "history.sqlite")
+    app = AppTest.from_file("app.py")
+    app.run(timeout=5)
+
+    app.radio[1].set_value("7 · History Search").run(timeout=10)
+    # Point the page at a temp DB and add a compound.
+    app.text_input(key="history_db_path").set_value(db_path).run(timeout=10)
+    app.text_input(key="history_add_smiles").set_value("CCOC(=O)c1ccccc1").run(timeout=10)
+    add_button = next(b for b in app.button if b.label == "加入历史库")
+    add_button.click().run(timeout=10)
+
+    assert not app.exception
+    assert any("已写入" in message.value for message in app.success)

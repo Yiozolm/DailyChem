@@ -15,6 +15,7 @@ from chem_workflow.assignment import (
     load_assignment_rules,
     render_assignment_draft,
 )
+from chem_workflow.database import db_app
 from chem_workflow.ir import ir_app
 from chem_workflow.llm_cli import llm_app
 from chem_workflow.ms import ms_app
@@ -64,6 +65,7 @@ app.add_typer(llm_app, name="llm")
 app.add_typer(ms_app, name="ms")
 app.add_typer(ir_app, name="ir")
 app.add_typer(uv_app, name="uv")
+app.add_typer(db_app, name="db")
 
 
 @app.callback()

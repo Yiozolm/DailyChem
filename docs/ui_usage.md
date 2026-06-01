@@ -1,7 +1,7 @@
 # DailyChem Streamlit UI 使用说明
 
 Phase 7 新增本地 Web UI，目标是让不熟悉命令行的化学同学也能完成核心流程：
-结构检查、NMR 文本格式化、实验记录生成和 compound 项目归档。
+结构检查、NMR 文本格式化、MS/IR/UV 表征、实验记录生成、compound 项目归档和历史检索。
 
 Demo 截图：[`docs/generated/phase7_streamlit_demo.png`](generated/phase7_streamlit_demo.png)
 
@@ -134,6 +134,21 @@ confidence 和 warning。
 - 每一行都有 review status：`candidate` / `needs_review` / `confirmed`。
 - `confirmed` 只能在人工核对结构和原始谱图后手动标记。
 - 可以在表格中人工修改 `selected_assignment` 和 `manual_note`。
+
+## 页面 7：History Search
+
+把做过的化合物沉淀到本地 SQLite 历史库，并按结构检索历史样例。页面顶部可指定数据库路径
+（默认 `data/chem_workflow.sqlite`），下分两个 tab：
+
+- **入库**：
+  - *从归档批量导入*：填项目根目录，扫描其中所有 `compounds/*/metadata.json` 并导入（会尽力带上已生成的谱学文本）。
+  - *添加当前化合物*：用当前会话的 compound ID / SMILES（以及已生成的 HRMS / IR / UV / NMR 文本）一键入库。
+- **检索**：输入 SMILES 或 SMARTS，选择检索方式——
+  - *子结构*：返回包含该子结构的所有历史化合物；
+  - *相似度*：用 Morgan 指纹 + Tanimoto，按可调阈值过滤并按分数降序展示。
+  - 结果以表格显示 compound ID / 分子式 / 分子量 / 相似度分数 / SMILES。
+
+历史库只存本地，不随 git 提交。
 
 ## LLM 辅助（draft，可选）
 
