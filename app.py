@@ -21,6 +21,7 @@ from chem_workflow.assignment import (
     assignment_rows_for_review,
     render_assignment_draft,
 )
+from chem_workflow.ir import IRInputError, format_ir, parse_ir_peaks
 from chem_workflow.llm import (
     polish_record,
 )
@@ -34,6 +35,13 @@ from chem_workflow.llm_models import (
     LLMServiceError,
     LLMWarning,
     OpenAISettings,
+)
+from chem_workflow.ms import (
+    MSInputError,
+    available_adducts,
+    compute_hrms,
+    format_hrms,
+    hrms_from_manual,
 )
 from chem_workflow.nmr import NMRInputError, parse_mestrenova_multiplet_table
 from chem_workflow.nmr_formatter import (
@@ -66,6 +74,7 @@ from chem_workflow.ui_support import (
     write_uploaded_file,
     zip_directory_to_bytes,
 )
+from chem_workflow.uv import UVInputError, format_uv, parse_uv_peaks
 
 Nucleus = Literal["1H", "13C", "19F", "31P"]
 SUPPORTED_FORMAT_NUCLEI = ("1H", "13C")
@@ -87,9 +96,10 @@ def main() -> None:
         (
             "1 · Compound Setup",
             "2 · NMR Formatter",
-            "3 · Experiment Record",
-            "4 · Project Export",
-            "5 · NMR Assignment",
+            "3 · MS / IR / UV",
+            "4 · Experiment Record",
+            "5 · Project Export",
+            "6 · NMR Assignment",
         ),
     )
 
@@ -98,8 +108,10 @@ def main() -> None:
     elif page.startswith("2"):
         _nmr_formatter_page()
     elif page.startswith("3"):
-        _experiment_record_page()
+        _spectra_page()
     elif page.startswith("4"):
+        _experiment_record_page()
+    elif page.startswith("5"):
         _project_export_page()
     else:
         _assignment_page()
@@ -115,6 +127,7 @@ def _render_sidebar() -> None:
 
         - 结构：SMILES / MOL / SDF / CDX / CDXML
         - NMR：MestReNova multiplet table
+        - MS / IR / UV：HRMS m/z、IR / UV-vis 文本
         - 记录：Markdown 初稿
         - 导出：标准 compound 文件夹 + zip
         - Assignment：候选归属 + 人工确认
@@ -289,6 +302,166 @@ def _handle_nmr_format(
         st.error(str(error))
 
 
+def _spectra_page() -> None:
+    _page_header(
+        "MS / IR / UV",
+        "生成 HRMS m/z、IR 和 UV-vis 标准表征文本；结果可自动带入实验记录。",
+    )
+
+    hrms_tab, ir_tab, uv_tab = st.tabs(["HRMS", "IR", "UV-vis"])
+    with hrms_tab:
+        _hrms_section()
+    with ir_tab:
+        _ir_section()
+    with uv_tab:
+        _uv_section()
+
+
+def _hrms_section() -> None:
+    mode = st.radio(
+        "Calculated m/z 来源",
+        ("从结构自动计算", "手动输入 calc m/z"),
+        horizontal=True,
+        key="hrms_mode",
+    )
+    col_a, col_b = st.columns(2)
+    with col_a:
+        adduct = st.selectbox("Adduct", available_adducts(), key="hrms_adduct")
+        ionization = st.text_input("Ionization", value="ESI", key="hrms_ionization")
+    with col_b:
+        found = st.text_input("Found m/z（可选）", value="", key="hrms_found")
+
+    smiles = ""
+    ion_formula = ""
+    calc = ""
+    if mode == "从结构自动计算":
+        smiles = st.text_input(
+            "SMILES",
+            value=_state_text("compound_smiles", "CCOC(=O)c1ccccc1"),
+            key="hrms_smiles",
+        )
+    else:
+        ion_formula = st.text_input("Ion formula", value="C9H10O2Na", key="hrms_ion_formula")
+        calc = st.text_input("Calculated m/z", value="173.0573", key="hrms_calc")
+
+    if st.button("生成 HRMS", type="primary", width="stretch", key="hrms_generate"):
+        _handle_hrms_generate(
+            mode=mode,
+            smiles=smiles,
+            ion_formula=ion_formula,
+            calc=calc,
+            adduct=adduct,
+            ionization=ionization,
+            found=found,
+        )
+
+    text = st.session_state.get("hrms_text")
+    if isinstance(text, str) and text:
+        st.divider()
+        _downloadable_code(
+            text,
+            file_name=f"{_safe_state_file_stem('compound_id')}_hrms.txt",
+            mime="text/plain",
+        )
+
+
+def _handle_hrms_generate(
+    *,
+    mode: str,
+    smiles: str,
+    ion_formula: str,
+    calc: str,
+    adduct: str,
+    ionization: str,
+    found: str,
+) -> None:
+    try:
+        found_mz = _optional_float(found, label="Found m/z")
+        if mode == "手动输入 calc m/z":
+            calc_mz = _optional_float(calc, label="Calculated m/z")
+            if calc_mz is None or not optional_text(ion_formula):
+                st.warning("手动模式需要同时填写 Ion formula 和 Calculated m/z。")
+                return
+            result = hrms_from_manual(
+                ion_formula=ion_formula,
+                calculated_mz=calc_mz,
+                adduct=adduct,
+                ionization=ionization,
+                found_mz=found_mz,
+            )
+        else:
+            if optional_text(smiles) is None:
+                st.warning("请提供 SMILES。")
+                return
+            result = compute_hrms(
+                smiles=smiles,
+                adduct=adduct,
+                ionization=ionization,
+                found_mz=found_mz,
+            )
+        st.session_state["hrms_text"] = format_hrms(result)
+        st.success("HRMS 文本已生成。")
+    except (MSInputError, ValueError) as error:
+        st.error(str(error))
+
+
+def _ir_section() -> None:
+    technique = st.text_input("Technique", value="neat", key="ir_technique")
+    include_intensity = st.checkbox("保留强度标签", value=False, key="ir_include_intensity")
+    peaks = st.text_area(
+        "IR 波数列表（逗号/空白/换行分隔，可带强度，如 1715 s）",
+        value="3050, 2920, 1715, 1600, 1450",
+        height=120,
+        key="ir_peaks",
+    )
+
+    if st.button("生成 IR", type="primary", width="stretch", key="ir_generate"):
+        try:
+            spectrum = parse_ir_peaks(peaks, technique=technique)
+            st.session_state["ir_text"] = format_ir(
+                spectrum, include_intensity=include_intensity
+            )
+            st.success("IR 文本已生成。")
+        except IRInputError as error:
+            st.error(str(error))
+
+    text = st.session_state.get("ir_text")
+    if isinstance(text, str) and text:
+        st.divider()
+        _downloadable_code(
+            text,
+            file_name=f"{_safe_state_file_stem('compound_id')}_ir.txt",
+            mime="text/plain",
+        )
+
+
+def _uv_section() -> None:
+    solvent = st.text_input("Solvent", value="MeOH", key="uv_solvent")
+    peaks = st.text_area(
+        "UV-vis λmax 列表（逗号/换行分隔，可带 ε，如 254 (12000)）",
+        value="254 (12000), 320 (4500)",
+        height=120,
+        key="uv_peaks",
+    )
+
+    if st.button("生成 UV-vis", type="primary", width="stretch", key="uv_generate"):
+        try:
+            spectrum = parse_uv_peaks(peaks, solvent=solvent)
+            st.session_state["uv_text"] = format_uv(spectrum)
+            st.success("UV-vis 文本已生成。")
+        except UVInputError as error:
+            st.error(str(error))
+
+    text = st.session_state.get("uv_text")
+    if isinstance(text, str) and text:
+        st.divider()
+        _downloadable_code(
+            text,
+            file_name=f"{_safe_state_file_stem('compound_id')}_uv.txt",
+            mime="text/plain",
+        )
+
+
 def _experiment_record_page() -> None:
     _page_header(
         "Experiment Record Generator",
@@ -341,11 +514,11 @@ def _experiment_record_page() -> None:
         )
         col_c1, col_c2 = st.columns(2)
         with col_c1:
-            hrms = st.text_input("HRMS", value="")
+            hrms = st.text_input("HRMS", value=_state_text("hrms_text"))
             ms = st.text_input("MS", value="")
         with col_c2:
-            ir = st.text_input("IR", value="")
-            uv = st.text_input("UV-vis", value="")
+            ir = st.text_input("IR", value=_state_text("ir_text"))
+            uv = st.text_input("UV-vis", value=_state_text("uv_text"))
         other_characterization = st.text_area("Other characterization（每行一条）", value="")
 
         submitted = st.form_submit_button("生成 Markdown", type="primary")
@@ -953,6 +1126,16 @@ def _state_text(key: str, default: str = "") -> str:
 def _safe_state_file_stem(key: str) -> str:
     raw = _state_text(key, "compound").strip() or "compound"
     return "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in raw)
+
+
+def _optional_float(value: str, *, label: str) -> float | None:
+    text = optional_text(value)
+    if text is None:
+        return None
+    try:
+        return float(text)
+    except ValueError as error:
+        raise ValueError(f"{label} 必须是数字，得到 {value!r}。") from error
 
 
 def _apply_theme() -> None:

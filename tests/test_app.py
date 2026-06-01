@@ -33,7 +33,7 @@ def test_streamlit_app_generates_assignment_draft() -> None:
     app = AppTest.from_file("app.py")
     app.run(timeout=5)
 
-    app.radio[1].set_value("5 · NMR Assignment").run(timeout=10)
+    app.radio[1].set_value("6 · NMR Assignment").run(timeout=10)
     app.radio[1].set_value("粘贴文本").run(timeout=10)
     app.button[0].click().run(timeout=15)
 
@@ -42,3 +42,17 @@ def test_streamlit_app_generates_assignment_draft() -> None:
         message.value for message in app.success
     ]
     assert "Editable review table" in [subheader.value for subheader in app.subheader]
+
+
+def test_streamlit_app_generates_hrms_text() -> None:
+    app = AppTest.from_file("app.py")
+    app.run(timeout=5)
+
+    app.radio[1].set_value("3 · MS / IR / UV").run(timeout=10)
+    # Default HRMS section: from-structure mode, ethyl benzoate, [M+H]+ default adduct.
+    app.button[0].click().run(timeout=10)
+
+    assert not app.exception
+    assert "HRMS 文本已生成。" in [message.value for message in app.success]
+    codes = " ".join(code.value for code in app.code)
+    assert "HRMS (ESI)" in codes

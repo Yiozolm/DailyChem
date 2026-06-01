@@ -854,8 +854,8 @@ UV-vis (MeOH) λmax 254 nm.
 - IR / UV parser 容错解析逗号/空白/换行分隔列表；IR 默认按波数从高到低，UV 默认按 λmax 从低到高；IR 可选保留强度标签，UV 可选 ε。
 - CLI 统一支持 `--inline` / 文件路径、`--json`、`--out`。
 - 样例：`examples/raw/{ms_hrms_example.txt, ir_peaks_example.txt, uv_peaks_example.txt}`；`examples/processed/{hrms_report.txt, ir_report.txt, uv_report.txt}`。
-- Streamlit UI 接入留待下一轮（本轮按计划 CLI 优先）。
-- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 159 passed, 1 skipped。
+- Streamlit UI 已接入：新增「MS / IR / UV」页面（HRMS / IR / UV-vis 三个 tab），生成的文本保存到会话并自动带入实验记录页的对应 characterization 字段。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 160 passed, 1 skipped。
 
 ---
 

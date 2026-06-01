@@ -63,10 +63,31 @@ uv run streamlit run app.py
 `19F` / `31P` 已在 UI 中预留入口，但格式化规则会放到后续 phase 扩展。格式化结果会显示为
 可复制代码块，Streamlit 代码块右上角提供 copy 图标；也可以下载为 `.txt`。
 
-## 页面 3：Experiment Record Generator
+格式化后的 `1H` / `13C` 文本会保存到当前会话，自动带入实验记录页的对应 characterization 字段。
+
+## 页面 3：MS / IR / UV
+
+把 HRMS、IR、UV-vis 数据整理成标准表征文本。页面分三个 tab：
+
+- **HRMS**：calculated m/z 有两种来源——
+  - *从结构自动计算*：输入 SMILES + 选择 adduct（`[M+H]+` / `[M+Na]+` / `[M+K]+` /
+    `[M+NH4]+` / `[M-H]-` / `[M+H-H2O]+`），程序用 RDKit 单同位素质量自动算 m/z 和离子式；
+  - *手动输入 calc m/z*：直接填 ion formula 和 calculated m/z。
+  - 可选填 found m/z，自动计算 ppm error。输出例：
+    `HRMS (ESI) m/z calculated for C9H10O2Na [M + Na]+ 173.0573, found 173.0570 (ppm error -1.7).`
+- **IR**：粘贴波数列表（逗号/空白/换行分隔，可带强度如 `1715 s`），可选 technique（neat / KBr / ATR）。
+  输出例：`IR (neat) νmax 3050, 2920, 1715, 1600, 1450 cm⁻¹.`
+- **UV-vis**：粘贴 λmax 列表（可带 ε，如 `254 (12000)`），可选 solvent。
+  输出例：`UV-vis (MeOH) λmax 254 nm (ε 12000), 320 nm (ε 4500).`
+
+每个 tab 生成的文本都保存到当前会话，自动带入实验记录页的 HRMS / IR / UV-vis 字段，也可单独下载。
+
+## 页面 4：Experiment Record Generator
 
 填写反应条件、workup、purification、yield 和 characterization 后，点击
 **生成 Markdown**。
+
+HRMS / IR / UV-vis 字段会自动填入上一页生成的文本（如果有）。
 
 Starting materials 和 reagents 推荐每行一个条目：
 
@@ -83,7 +104,7 @@ benzoic acid, 1.0 mmol
 
 若前一步已经格式化过 `1H` 或 `13C` NMR，相关文本会自动进入 characterization 输入框。
 
-## 页面 4：Project Export
+## 页面 5：Project Export
 
 Project Export 会调用 Phase 6 的归档逻辑，创建标准 compound 文件夹：
 
@@ -101,7 +122,7 @@ Project Export 会调用 Phase 6 的归档逻辑，创建标准 compound 文件�
 
 默认不覆盖已有 compound；如需重新生成，必须显式勾选 **允许覆盖已有 metadata / summary**。
 
-## 页面 5：NMR Assignment Draft
+## 页面 6：NMR Assignment Draft
 
 该页面用于生成 `1H NMR` 候选 assignment 草稿。它会结合结构特征和
 `data/rules/nmr_1h_rules.yaml` 里的规则，为每个 peak 给出 possible candidates、
@@ -140,6 +161,7 @@ LLM 草稿不能直接作为最终结论或论文 supporting information，必�
 
 - Web UI 是本地辅助工具，不做用户权限或服务器部署设计。
 - NMR formatter 目前只支持 `1H` / `13C` publication-style 输出。
+- HRMS adduct 目前支持单电荷常见集合（`[M+H]+` / `[M+Na]+` / `[M+K]+` / `[M+NH4]+` / `[M-H]-` / `[M+H-H2O]+`）。
 - Assignment assistant 目前只支持 `1H NMR` 候选归属。
 - LLM 人工确认状态只存当前 Streamlit 会话，刷新页面会丢失。
 - Word 报告导出暂未实现，当前推荐先使用 Markdown。
