@@ -21,6 +21,20 @@ from chem_workflow.assignment import (
     assignment_rows_for_review,
     render_assignment_draft,
 )
+from chem_workflow.llm import (
+    polish_record,
+)
+from chem_workflow.llm import (
+    summarize_assignment as llm_summarize_assignment,
+)
+from chem_workflow.llm_models import (
+    AssignmentSummaryDraft,
+    ExperimentRecordDraft,
+    LLMInputError,
+    LLMServiceError,
+    LLMWarning,
+    OpenAISettings,
+)
 from chem_workflow.nmr import NMRInputError, parse_mestrenova_multiplet_table
 from chem_workflow.nmr_formatter import (
     NMRFormatError,
@@ -371,6 +385,33 @@ def _experiment_record_page() -> None:
             file_name=f"{_safe_state_file_stem('compound_id')}_experiment_record.md",
             mime="text/markdown",
         )
+        _render_record_polish_section(markdown, language)
+
+
+def _render_record_polish_section(markdown: str, language: Language) -> None:
+    st.divider()
+    st.subheader("LLM 辅助（draft）")
+    st.caption("把上方 Markdown 润色成 supporting-information 风格；输出为 draft，需人工确认。")
+    settings = _llm_settings_expander("record")
+    if st.button("✨ LLM 润色草稿", key="record_llm_polish", width="stretch"):
+        if settings is None:
+            return
+        try:
+            result = polish_record(markdown, settings=settings, language=language)
+            st.session_state["record_llm_draft"] = result.output
+        except (LLMInputError, LLMServiceError) as error:
+            st.error(str(error))
+            return
+
+    draft = st.session_state.get("record_llm_draft")
+    if isinstance(draft, ExperimentRecordDraft):
+        _render_llm_draft(
+            title=draft.title or "Polished record draft",
+            markdown_text=draft.markdown,
+            warnings=draft.warnings,
+            file_name=f"{_safe_state_file_stem('compound_id')}_record_llm_draft.md",
+            checkbox_key="record_llm_reviewed",
+        )
 
 
 def _handle_record_generate(
@@ -629,6 +670,33 @@ def _show_assignment_result() -> None:
         file_name=f"{_safe_state_file_stem('compound_id')}_assignment_draft.md",
         mime="text/markdown",
     )
+    _render_assignment_summary_section(markdown)
+
+
+def _render_assignment_summary_section(markdown: str) -> None:
+    st.divider()
+    st.subheader("LLM 辅助（draft）")
+    st.caption("把候选归属整理成可读的复核摘要；输出为 draft，assignment 仍为候选。")
+    settings = _llm_settings_expander("assignment")
+    if st.button("📝 Summarize for review", key="assignment_llm_summary", width="stretch"):
+        if settings is None:
+            return
+        try:
+            result = llm_summarize_assignment(markdown, settings=settings)
+            st.session_state["assignment_llm_draft"] = result.output
+        except (LLMInputError, LLMServiceError) as error:
+            st.error(str(error))
+            return
+
+    draft = st.session_state.get("assignment_llm_draft")
+    if isinstance(draft, AssignmentSummaryDraft):
+        _render_llm_draft(
+            title="Assignment review summary",
+            markdown_text=draft.summary_markdown,
+            warnings=draft.warnings,
+            file_name=f"{_safe_state_file_stem('compound_id')}_assignment_summary.md",
+            checkbox_key="assignment_llm_reviewed",
+        )
 
 
 def _handle_project_export(
@@ -763,6 +831,68 @@ def _downloadable_code(text: str, *, file_name: str, mime: str) -> None:
         mime=mime,
         width="stretch",
     )
+
+
+def _llm_settings_expander(key_prefix: str) -> OpenAISettings | None:
+    """Render an optional LLM settings expander and build OpenAISettings.
+
+    API key is never collected here; it is read from environment / `.env` by `from_env`.
+    Returns None when the settings are invalid (already surfaced via st.error).
+    """
+    with st.expander("LLM 设置（可选）"):
+        st.caption("API key 只从环境变量或项目 `.env` 读取，不在此页面收集。")
+        model = st.text_input(
+            "Model（留空用默认）",
+            value="",
+            key=f"{key_prefix}_llm_model",
+            placeholder="gpt-5.4-mini",
+        )
+        base_url = st.text_input(
+            "Base URL（OpenAI-compatible，可选）",
+            value="",
+            key=f"{key_prefix}_llm_base_url",
+            placeholder="https://api.openai.com/v1",
+        )
+        api_mode = st.selectbox(
+            "API mode",
+            ("responses", "chat-completions"),
+            key=f"{key_prefix}_llm_api_mode",
+        )
+    try:
+        return OpenAISettings.from_env(
+            model=model or None,
+            base_url=base_url or None,
+            api_mode=cast("Literal['responses', 'chat-completions']", api_mode),
+        )
+    except LLMInputError as error:
+        st.error(str(error))
+        return None
+
+
+def _render_llm_draft(
+    *,
+    title: str,
+    markdown_text: str,
+    warnings: list[LLMWarning],
+    file_name: str,
+    checkbox_key: str,
+) -> None:
+    """Render an LLM draft with a draft badge, warnings, copy block, and review checkbox."""
+    st.subheader(title)
+    st.caption("⚠️ DRAFT —— 不可直接作为最终结论 / supporting information，请人工复核后再使用。")
+
+    severity_icon = {"info": "ℹ️", "warning": "⚠️", "risk": "🛑"}
+    if warnings:
+        st.markdown("**Warnings**")
+        for warning in warnings:
+            icon = severity_icon.get(warning.severity, "⚠️")
+            st.markdown(f"- {icon} `{warning.code}` — {warning.message}")
+    else:
+        st.caption("（无 warnings）")
+
+    st.markdown(markdown_text)
+    _downloadable_code(markdown_text, file_name=file_name, mime="text/markdown")
+    st.checkbox("✅ I reviewed this draft", key=checkbox_key)
 
 
 def _show_compound_metrics(info: dict[object, object]) -> None:

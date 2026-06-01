@@ -20,10 +20,13 @@ from chem_workflow.llm import (
     LLMWarning,
     OpenAIResponsesClient,
     OpenAISettings,
+    build_polish_record_input,
     draft_experiment_record,
     find_unsupported_characterization_claims,
+    polish_record,
     postprocess_assignment_summary_draft,
     summarize_assignment,
+    summarize_warnings,
 )
 from chem_workflow.llm_models import LLMInputError, load_dotenv_if_present, resolve_api_key
 from chem_workflow.records import load_reaction_record
@@ -31,6 +34,7 @@ from chem_workflow.records import load_reaction_record
 FIXTURES = Path(__file__).resolve().parents[1] / "examples"
 RECORD_FIXTURE = FIXTURES / "raw" / "experiment_record_example.yaml"
 ASSIGNMENT_FIXTURE = FIXTURES / "processed" / "assignment_draft.md"
+RECORD_MD_FIXTURE = FIXTURES / "processed" / "experiment_record.md"
 
 
 class FakeLLMClient:
@@ -193,6 +197,41 @@ def test_summarize_assignment_uses_fake_client() -> None:
     assert fake.calls[0]["metadata"]["task"] == "assignment_summary"
 
 
+def test_summarize_warnings_uses_fake_client() -> None:
+    fake = FakeLLMClient()
+    settings = OpenAISettings(model="gpt-test")
+    markdown = ASSIGNMENT_FIXTURE.read_text(encoding="utf-8")
+
+    result = summarize_warnings(markdown, settings=settings, client=fake)
+
+    assert result.output.status == "draft"
+    assert result.metadata.request_id == "req_fake_assignment"
+    assert fake.calls[0]["metadata"]["task"] == "warning_summary"
+    assert "assignment_draft_markdown" in fake.calls[0]["input_text"]
+
+
+def test_polish_record_uses_fake_client() -> None:
+    fake = FakeLLMClient()
+    settings = OpenAISettings(model="gpt-test")
+    markdown = RECORD_MD_FIXTURE.read_text(encoding="utf-8")
+
+    result = polish_record(markdown, settings=settings, language="en", client=fake)
+
+    assert result.output.status == "draft"
+    assert result.metadata.request_id == "req_fake_record"
+    assert fake.calls[0]["metadata"]["task"] == "polish_record"
+    assert "record_markdown" in fake.calls[0]["input_text"]
+
+
+def test_build_polish_record_input_rejects_empty() -> None:
+    try:
+        build_polish_record_input("   \n")
+    except LLMInputError as e:
+        assert "实验记录" in str(e)
+    else:
+        raise AssertionError("Expected LLMInputError")
+
+
 def test_chat_completions_mode_parses_fake_response() -> None:
     class FakeMessage:
         content = '{"status": "draft", "summary_markdown": "Candidate summary."}'
@@ -299,6 +338,33 @@ def test_cli_llm_summarize_assignment_dry_run_writes_file(
     assert result.exit_code == 0
     assert result.output == f"已写入 {out}\n"
     assert "assignment_summary" in out.read_text(encoding="utf-8")
+
+
+def test_cli_llm_summarize_warnings_dry_run(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app, ["llm", "summarize-warnings", str(ASSIGNMENT_FIXTURE), "--dry-run-prompt"]
+    )
+
+    assert result.exit_code == 0
+    assert "## Instructions" in result.output
+    assert "warning_summary" in result.output
+
+
+def test_cli_llm_polish_record_dry_run(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app, ["llm", "polish-record", str(RECORD_MD_FIXTURE), "--dry-run-prompt"]
+    )
+
+    assert result.exit_code == 0
+    assert "## Instructions" in result.output
+    assert "polish_record" in result.output
+    assert "record_markdown" in result.output
 
 
 def test_cli_llm_draft_record_without_api_key_is_clear(

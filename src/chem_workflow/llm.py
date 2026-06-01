@@ -345,6 +345,97 @@ def summarize_assignment(
     )
 
 
+def build_warning_summary_input(assignment_markdown: str) -> dict[str, Any]:
+    """Build the JSON payload for summarizing assignment warnings."""
+    if not assignment_markdown.strip():
+        raise LLMInputError("assignment draft 为空，无法生成 warning summary。")
+    return {
+        "task": "warning_summary",
+        "assignment_draft_markdown": assignment_markdown,
+        "constraints": {
+            "status": "draft",
+            "do_not_resolve_automatically": True,
+            "manual_confirmation_required": True,
+        },
+    }
+
+
+def build_polish_record_input(
+    record_markdown: str,
+    *,
+    language: str = "en",
+    style: str = "supporting-information",
+) -> dict[str, Any]:
+    """Build the JSON payload for polishing an existing experiment record."""
+    if not record_markdown.strip():
+        raise LLMInputError("实验记录为空，无法进行 LLM 润色。")
+    return {
+        "task": "polish_record",
+        "language": language,
+        "style": style,
+        "record_markdown": record_markdown,
+        "constraints": {
+            "status": "draft",
+            "preserve_numbers_and_units": True,
+            "do_not_invent_characterization": True,
+        },
+    }
+
+
+def summarize_warnings(
+    assignment_markdown: str,
+    *,
+    settings: OpenAISettings,
+    client: LLMClientProtocol | None = None,
+) -> StructuredLLMResult[AssignmentSummaryDraft]:
+    """Summarize warnings in a rule-based assignment draft for human review."""
+    prompt = load_prompt("warning_summary")
+    input_payload = build_warning_summary_input(assignment_markdown)
+    result = _parse_with_client(
+        task="warning_summary",
+        settings=settings,
+        prompt=prompt,
+        input_payload=input_payload,
+        output_model=AssignmentSummaryDraft,
+        client=client,
+    )
+    output = postprocess_assignment_summary_draft(result.output)
+    return StructuredLLMResult(
+        output=output,
+        metadata=result.metadata,
+        input_payload=result.input_payload,
+        prompt=result.prompt,
+    )
+
+
+def polish_record(
+    record_markdown: str,
+    *,
+    settings: OpenAISettings,
+    language: str = "en",
+    style: str = "supporting-information",
+    client: LLMClientProtocol | None = None,
+) -> StructuredLLMResult[ExperimentRecordDraft]:
+    """Polish an existing experiment record into a draft supporting-information style."""
+    prompt = load_prompt("polish_record")
+    input_payload = build_polish_record_input(record_markdown, language=language, style=style)
+    result = _parse_with_client(
+        task="polish_record",
+        settings=settings,
+        prompt=prompt,
+        input_payload=input_payload,
+        output_model=ExperimentRecordDraft,
+        client=client,
+    )
+    output = postprocess_experiment_record_draft(result.output, input_payload)
+    return StructuredLLMResult(
+        output=output,
+        metadata=result.metadata,
+        input_payload=result.input_payload,
+        prompt=result.prompt,
+    )
+
+
 def postprocess_experiment_record_draft(
     draft: ExperimentRecordDraft,
     source_payload: dict[str, Any],

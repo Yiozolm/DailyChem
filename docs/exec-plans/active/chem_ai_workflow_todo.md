@@ -33,35 +33,41 @@
   - [X] 是否主要用 Word / Excel / 手写 / Markdown 记录实验
 - [ ] 收集 3–5 个真实但可脱敏的样例
 
-  - [ ] 一个目标化合物结构文件：`.cdx` / `.mol` / `.sdf` / SMILES
-  - [ ] 一份 1H NMR peak list
+  - [x] 一个目标化合物结构文件：`.cdx` / `.mol` / `.sdf` / SMILES
+  - [x] 一份 1H NMR peak list
   - [ ] 一份 13C NMR peak list
-  - [ ] 一份实验记录文本
-  - [ ] 一份谱图 PDF 或图片
-  - [ ] 一份最终论文/报告里的表征格式
-- [ ] 明确第一版支持范围
+  - [x] 一份实验记录文本
+  - [x] 一份谱图 PDF 或图片（`data/raw/原始谱.jpg`、`data/raw/解析谱.jpg`、`data/raw/数据目录.jpg`；用于需求调研/视觉参考，不作为 parser 输入）
+  - [x] 一份最终论文/报告里的表征格式（当前用 `examples/processed/nmr_report.txt` 作为规范化输出样例）
+- [x] 明确第一版支持范围
 
   - [ ] 只支持 1H NMR
   - [X] 支持 1H + 13C NMR
-  - [ ] 是否需要支持 19F / 31P
+  - [x] 是否需要支持 19F / 31P（UI 预留入口；后端 publication-style formatter 暂不支持，显示清晰提示）
   - [X] 是否需要支持 MS / HRMS
   - [X] 是否需要英文实验记录
-  - [ ] 是否需要中文实验记录
+  - [X] 是否需要中文实验记录
 
 ## 验收标准
 
 - [ ] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录
 - [x] 明确第一版输入/转换策略：
   - **结构**：`.cdx`（用户常用）/ `.cdxml` / `.mol` / `.sdf` / SMILES 全部接受；rdkit 2026.3.1 PyPI 轮子原生支持 `.cdx`/`.cdxml`，单化合物 MVP 已实现（见 `docs/design-docs/cdx-handling-spike.md`）。
-  - **NMR**：接 **MestReNova 导出的 peak table（CSV 优先，文本报告备选）**。不接 Bruker 仪器原始数据目录（fid/acqus 等，等于重建 MestReNova），不接谱图截图（光栅图反推精度差且丢积分）。详见 `docs/design-docs/nmr-input-strategy.md`。
-- [ ] 明确第一版输出格式
+  - **NMR**：接 **MestReNova Multiplets 表复制粘贴的 tab-separated 文本为主，兼容常见 comma / semicolon CSV-like table**。不接 Bruker 仪器原始数据目录（fid/acqus 等，等于重建 MestReNova），不接谱图截图（光栅图反推精度差且丢积分）。详见 `docs/design-docs/nmr-input-strategy.md`。
+- [x] 明确第一版输出格式：结构 metadata / atom-indexed SVG、NMR JSON、publication-style NMR 文本、实验记录 Markdown、compound folder summary；Word/PDF 不纳入 MVP。
 - [ ] 明确用户最常用的文件命名方式
 
 ## 可交付物
 
-- [ ] `docs/requirements.md`
-- [ ] `examples/raw/` 样例数据文件夹
-- [ ] `examples/expected_outputs/` 期望输出文件夹
+- [ ] `docs/product-specs/requirements.md`（原计划 `docs/requirements.md`，按当前文档规范应落到 `docs/product-specs/`）
+- [x] `examples/raw/` 样例数据文件夹
+- [ ] `examples/expected_outputs/` 期望输出文件夹（目录已存在，但仍缺正式 expected output 文件）
+
+## 状态同步备注（2026-05-18）
+
+- 已有 raw 样例覆盖：ChemDraw `.cdx/.cdxml/.mol/.sdf/.smi`、MestReNova multiplet table、实验记录 YAML，以及 `data/raw/` 下的谱图/数据目录截图。
+- 已有 processed 样例覆盖：结构 SVG、NMR JSON、NMR publication-style 文本、实验记录 Markdown、assignment draft。
+- Phase 0 仍未完全关闭：还缺 3 个完整真实化合物的端到端样例、13C NMR 真实 peak list、用户常用文件命名方式，以及正式 `docs/product-specs/requirements.md`。
 
 ---
 
@@ -706,9 +712,9 @@ alkene_H:
 
 - [x] 把结构化实验数据转成自然语言实验记录
 - [x] 把 NMR assignment 草稿整理成可读解释
-- [ ] 根据异常检查结果生成提醒
+- [x] 根据异常检查结果生成提醒
 - [ ] 把中文实验记录翻译成英文
-- [ ] 把英文实验记录润色成论文 supporting information 风格
+- [x] 把英文实验记录润色成论文 supporting information 风格
 
 ## 不建议直接交给 LLM 的任务
 
@@ -724,7 +730,7 @@ alkene_H:
 - [x] 明确 LLM 输出必须包含 warning 字段
 - [x] 对 LLM 输出做结构化校验
 - [x] 保存 LLM 生成记录，方便回溯
-- [ ] 添加人工确认步骤
+- [x] 添加人工确认步骤（Streamlit draft + “I reviewed this” 复选框；状态仅当前会话有效）
 
 ## 示例 schema
 
@@ -777,10 +783,13 @@ alkene_H:
 - 新增 CLI：
   - `chemwf llm draft-record`
   - `chemwf llm summarize-assignment`
-  - 两者均支持 `--dry-run-prompt`、`--model`、`--base-url`、`--api-mode`、`--out`、`--save-run`。
+  - `chemwf llm summarize-warnings`（复用 assignment draft 输入）
+  - `chemwf llm polish-record`（支持 `--language en|zh`）
+  - 均支持 `--dry-run-prompt`、`--model`、`--base-url`、`--api-mode`、`--out`、`--save-run`。
 - LLM 输出 schema 均要求 `status: "draft"` 和 `warnings`；实验记录 draft 增加 conservative spectroscopy 数值检查，assignment summary 增加过度确定措辞 warning。
-- 当前尚未接入 Streamlit UI，`summarize-warnings` / `polish-record` 也暂未正式接线；人工确认状态持久化留作下一步。
-- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 117 passed；`uv run chemwf llm draft-record examples/raw/experiment_record_example.yaml --dry-run-prompt` 可输出 prompt/input 预览。
+- Streamlit UI 已接入：Experiment Record 页加 “✨ LLM 润色草稿”，NMR Assignment 页加 “📝 Summarize for review”；两者展示 draft badge、按 severity 排序的 warnings、可复制/下载草稿和 “I reviewed this” 人工确认复选框（状态仅当前会话有效）。API key 只从环境变量 / `.env` 读取，不在 UI 收集。
+- 新增 `tests/test_llm_integration.py`（`@pytest.mark.integration`），默认跳过，仅在设置 `CHEMWF_RUN_OPENAI_INTEGRATION` 且提供 API key 时运行。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 128 passed, 1 skipped；`uv run chemwf llm draft-record examples/raw/experiment_record_example.yaml --dry-run-prompt` 可输出 prompt/input 预览。
 
 ---
 
@@ -1112,12 +1121,14 @@ The toolkit should generate a draft experiment record from structured reaction a
 
 MVP 只需要完成以下功能：
 
-- [ ] 输入 compound ID 和 SMILES
-- [ ] 生成结构图和分子基本信息
-- [ ] 读取 1H NMR peak list CSV
-- [ ] 生成标准 1H NMR 描述
-- [ ] 读取反应 YAML
-- [ ] 生成英文实验记录 Markdown
-- [ ] 自动整理到 compound 文件夹
+- [x] 输入 compound ID 和 SMILES
+- [x] 生成结构图和分子基本信息
+- [x] 读取 1H NMR peak list（MestReNova multiplet table / CSV-like table）
+- [x] 生成标准 1H NMR 描述
+- [x] 读取反应 YAML
+- [x] 生成英文实验记录 Markdown
+- [x] 自动整理到 compound 文件夹
+
+状态同步（2026-05-18）：以上 MVP 能力已分别在 Phase 2、Phase 3、Phase 4、Phase 5 和 Phase 6 完成并通过测试；项目已经具备可端到端使用的最小工作流。
 
 完成这些后，就已经能显著改善化学同学的记录和整理工作流。

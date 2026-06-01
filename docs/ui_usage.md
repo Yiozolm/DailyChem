@@ -114,9 +114,32 @@ confidence 和 warning。
 - `confirmed` 只能在人工核对结构和原始谱图后手动标记。
 - 可以在表格中人工修改 `selected_assignment` 和 `manual_note`。
 
+## LLM 辅助（draft，可选）
+
+Phase 9 在两个页面接入了可选的 LLM 辅助按钮。两者都遵循"先结构化，再 LLM"的原则：
+LLM 只消费页面里已经生成的结构化文本，**不会**凭空编造 NMR / MS / HRMS / IR / UV 数据。
+
+- **Experiment Record 页**：生成 Markdown 后，下方出现 **✨ LLM 润色草稿** 按钮，
+  把记录润色成 supporting-information 风格。
+- **NMR Assignment 页**：生成草稿后，下方出现 **📝 Summarize for review** 按钮，
+  把候选归属整理成可读的复核摘要。
+
+每个 LLM 区块都有一个 **LLM 设置（可选）** 折叠面板，可填写 model、base URL 和 API mode
+（`responses` / `chat-completions`）。API key **不在页面收集**，只从环境变量或项目根目录
+`.env` 读取（`OPENAI_API_KEY`，DeepSeek 用 `DEEPSEEK_API_KEY`）。
+
+输出始终标记为 **DRAFT**，并展示：
+
+- 按 severity 排序的 warnings（`info` / `warning` / `risk`）。
+- 可复制 / 下载的 Markdown 草稿。
+- **✅ I reviewed this draft** 人工确认复选框（仅当前会话有效，刷新即重置）。
+
+LLM 草稿不能直接作为最终结论或论文 supporting information，必须人工复核后再使用。
+
 ## 当前限制
 
 - Web UI 是本地辅助工具，不做用户权限或服务器部署设计。
 - NMR formatter 目前只支持 `1H` / `13C` publication-style 输出。
 - Assignment assistant 目前只支持 `1H NMR` 候选归属。
+- LLM 人工确认状态只存当前 Streamlit 会话，刷新页面会丢失。
 - Word 报告导出暂未实现，当前推荐先使用 Markdown。

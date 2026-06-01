@@ -384,15 +384,15 @@ CHEMWF_RUN_OPENAI_INTEGRATION=1 OPENAI_API_KEY=... uv run pytest -m integration
 
 ## 验收标准
 
-- [ ] `openai` SDK 已加入 `pyproject.toml`，`.env` 已加入 `.gitignore`
-- [ ] `chemwf llm draft-record` 可以从 YAML/JSON 生成 schema-valid JSON draft
-- [ ] `chemwf llm summarize-assignment` 可以把 assignment draft 转为人工复核摘要
-- [ ] 所有 LLM 输出都包含 `status: "draft"` 和 `warnings`
-- [ ] 缺少 API key、认证失败、rate limit、schema mismatch 都有清晰错误
-- [ ] 默认测试不需要真实 OpenAI API key
-- [ ] 至少一个 integration test 可在用户提供 API key 时运行
-- [ ] Streamlit UI 至少能调用实验记录 polish 或 assignment summary 中的一个
-- [ ] `docs/exec-plans/active/chem_ai_workflow_todo.md` Phase 9 状态同步更新
+- [x] `openai` SDK 已加入 `pyproject.toml`，`.env` 已加入 `.gitignore`
+- [x] `chemwf llm draft-record` 可以从 YAML/JSON 生成 schema-valid JSON draft
+- [x] `chemwf llm summarize-assignment` 可以把 assignment draft 转为人工复核摘要
+- [x] 所有 LLM 输出都包含 `status: "draft"` 和 `warnings`
+- [x] 缺少 API key、认证失败、rate limit、schema mismatch 都有清晰错误
+- [x] 默认测试不需要真实 OpenAI API key
+- [x] 至少一个 integration test 可在用户提供 API key 时运行
+- [x] Streamlit UI 至少能调用实验记录 polish 或 assignment summary 中的一个
+- [x] `docs/exec-plans/active/chem_ai_workflow_todo.md` Phase 9 状态同步更新
 
 ## 分阶段实施顺序
 
@@ -496,19 +496,33 @@ uv run chemwf llm draft-record examples/raw/experiment_record_example.yaml --dry
   - 实现 spectroscopy 数值新增的 conservative scan
   - 实现 assignment 过度确定措辞 warning
 
+### 收尾补全（2026-06-01）
+
+- [x] Step 4 剩余：`chemwf llm summarize-warnings`、`chemwf llm polish-record` 正式接线
+  - `summarize-warnings` 复用 assignment draft 输入（→ `AssignmentSummaryDraft`）
+  - `polish-record` 支持 `--language en|zh`、`--style`（→ `ExperimentRecordDraft`，复用数值守恒后处理）
+  - 新增 `llm.py`：`build_warning_summary_input` / `summarize_warnings` / `build_polish_record_input` / `polish_record`
+- [x] Step 6：Streamlit UI 接入
+  - Experiment Record 页：“✨ LLM 润色草稿” → `polish_record`
+  - NMR Assignment 页：“📝 Summarize for review” → `summarize_assignment`
+  - 统一 draft badge、按 severity 排序 warnings、可复制/下载草稿、“I reviewed this” 复选框（状态仅当前会话）
+  - API key 不在 UI 收集，只从环境变量 / `.env` 读取
+- [x] Step 7：文档与验收
+  - 更新 `docs/ui_usage.md`（新增「LLM 辅助（draft，可选）」小节）
+  - 更新 `chem_ai_workflow_todo.md` Phase 9 状态
+- [x] Integration test：`tests/test_llm_integration.py`（`@pytest.mark.integration`），默认跳过
+
 已验证：
 
 ```bash
-uv run ruff check .
-uv run pytest
-uv run chemwf llm draft-record examples/raw/experiment_record_example.yaml --dry-run-prompt
+uv run ruff check .   # 全绿
+uv run pytest         # 128 passed, 1 skipped
+uv run chemwf llm summarize-warnings examples/processed/assignment_draft.md --dry-run-prompt
+uv run chemwf llm polish-record examples/processed/experiment_record.md --dry-run-prompt
 ```
 
-结果：`ruff` 全绿，`pytest` 为 117 passed。
+尚未完成（留作后续）：
 
-尚未完成：
-
-- Streamlit UI 接入
-- `summarize-warnings` / `polish-record` CLI 正式接线
-- 真实 OpenAI API integration test；默认仍跳过，避免测试依赖 API key / 网络
-- 人工确认 UI 状态持久化
+- `polish-record` 中文（`--language zh`）端到端真实校验（CLI/UI 入口已具备）
+- LLM 人工确认状态持久化到磁盘（当前仅 Streamlit 会话内）
+- 真实 OpenAI API 回归（默认仍跳过，避免测试依赖 API key / 网络）

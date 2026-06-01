@@ -42,3 +42,6 @@ extend-immutable-calls = ["typer.Argument", "typer.Option"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "integration: tests that call the real OpenAI API; skipped unless CHEMWF_RUN_OPENAI_INTEGRATION is set",
+]
