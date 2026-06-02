@@ -1,5 +1,7 @@
 # Phase 9 OpenAI SDK LLM 辅助层执行计划
 
+> ✅ 已完成并归档（2026-06-02 移入 `completed/`）。后续 LLM 相关增强见 `chem_ai_workflow_todo.md`。
+
 ## 背景
 
 项目当前已完成结构解析、NMR peak list parsing / formatting、实验记录 Markdown 生成、本地归档、Streamlit UI，以及 rule-based `1H` NMR assignment draft。

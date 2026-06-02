@@ -45,7 +45,7 @@
 **Q: 用 LLM 润色 / 摘要需要什么？**
 需要一个 OpenAI（或兼容）API key。在项目根目录建 `.env`，写
 `OPENAI_API_KEY=...`（DeepSeek 用 `DEEPSEEK_API_KEY`）。API key 只从环境变量 / `.env` 读取，
-不会写进配置或日志。详见 `docs/exec-plans/active/phase9_openai_sdk_plan.md`。
+不会写进配置或日志。详见 `docs/exec-plans/completed/phase9_openai_sdk_plan.md`。
 
 **Q: LLM 会不会编造数据？**
 prompt 和后处理都禁止新增表征数值；输出恒为 draft 且带 warnings。即便如此，
