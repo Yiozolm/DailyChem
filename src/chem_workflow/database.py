@@ -38,6 +38,19 @@ class CompoundRecord(BaseModel):
     spectra: dict[str, str] = Field(default_factory=dict)  # {"1H": "...", "HRMS": "...", ...}
 
 
+class LiteratureRecord(BaseModel):
+    """A literature reference plus its reported NMR data, keyed by DOI."""
+
+    doi: str
+    smiles: str  # canonical
+    title: str | None = None
+    authors: str | None = None
+    year: int | None = None
+    nmr_1h: str | None = None
+    nmr_13c: str | None = None
+    note: str | None = None
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS compounds (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +68,17 @@ CREATE TABLE IF NOT EXISTS spectra (
     text TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_spectra_compound ON spectra(compound_pk);
+CREATE TABLE IF NOT EXISTS literature (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doi TEXT UNIQUE NOT NULL,
+    title TEXT,
+    authors TEXT,
+    year INTEGER,
+    smiles TEXT NOT NULL,
+    nmr_1h TEXT,
+    nmr_13c TEXT,
+    note TEXT
+);
 """
 
 
@@ -173,6 +197,83 @@ def make_record(
         spectra={k: v for k, v in (spectra or {}).items() if v and v.strip()},
     )
 
+
+def make_literature_record(
+    *,
+    doi: str,
+    smiles: str,
+    title: str | None = None,
+    authors: str | None = None,
+    year: int | None = None,
+    nmr_1h: str | None = None,
+    nmr_13c: str | None = None,
+    note: str | None = None,
+) -> LiteratureRecord:
+    """Build a :class:`LiteratureRecord`, canonicalizing the SMILES."""
+    if not doi.strip():
+        raise DatabaseError("doi 不能为空。")
+    return LiteratureRecord(
+        doi=doi.strip(),
+        smiles=_canonical_smiles(smiles),
+        title=_optional_str(title),
+        authors=_optional_str(authors),
+        year=year,
+        nmr_1h=_optional_str(nmr_1h),
+        nmr_13c=_optional_str(nmr_13c),
+        note=_optional_str(note),
+    )
+
+
+def upsert_literature(conn: sqlite3.Connection, record: LiteratureRecord) -> None:
+    """Insert or replace a literature reference keyed by DOI (idempotent)."""
+    with conn:
+        conn.execute(
+            """
+            INSERT INTO literature (doi, title, authors, year, smiles, nmr_1h, nmr_13c, note)
+            VALUES (:doi, :title, :authors, :year, :smiles, :nmr_1h, :nmr_13c, :note)
+            ON CONFLICT(doi) DO UPDATE SET
+                title = excluded.title,
+                authors = excluded.authors,
+                year = excluded.year,
+                smiles = excluded.smiles,
+                nmr_1h = excluded.nmr_1h,
+                nmr_13c = excluded.nmr_13c,
+                note = excluded.note
+            """,
+            record.model_dump(),
+        )
+
+
+def all_literature(conn: sqlite3.Connection) -> list[LiteratureRecord]:
+    """Return every literature reference (the candidate set for literature search)."""
+    rows = conn.execute("SELECT * FROM literature ORDER BY doi").fetchall()
+    return [_row_to_literature(row) for row in rows]
+
+
+def get_literature_by_doi(conn: sqlite3.Connection, doi: str) -> LiteratureRecord | None:
+    """Return the literature reference with this exact DOI, or None."""
+    row = conn.execute("SELECT * FROM literature WHERE doi = ?", (doi.strip(),)).fetchone()
+    return _row_to_literature(row) if row is not None else None
+
+
+def delete_literature(conn: sqlite3.Connection, doi: str) -> bool:
+    """Delete a literature reference. Returns True if a row was removed."""
+    with conn:
+        cursor = conn.execute("DELETE FROM literature WHERE doi = ?", (doi.strip(),))
+    return cursor.rowcount > 0
+
+
+def _row_to_literature(row: sqlite3.Row) -> LiteratureRecord:
+    return LiteratureRecord(
+        doi=row["doi"],
+        smiles=row["smiles"],
+        title=row["title"],
+        authors=row["authors"],
+        year=row["year"],
+        nmr_1h=row["nmr_1h"],
+        nmr_13c=row["nmr_13c"],
+        note=row["note"],
+    )
 
 def record_from_metadata(metadata_path: str | Path) -> CompoundRecord:
     """Build a :class:`CompoundRecord` from a ``compounds/<id>/metadata.json`` file."""
@@ -384,3 +485,119 @@ def db_search(
             f"{hit.compound.compound_id:12s}  {hit.compound.formula or '-':14s}  "
             f"{hit.compound.smiles}{score}"
         )
+
+
+lit_app = typer.Typer(help="本地文献参考与检索命令", no_args_is_help=True)
+
+
+@lit_app.command("add")
+def lit_add(
+    doi: str = typer.Option(..., "--doi", help="文献 DOI（唯一键）"),
+    smiles: str = typer.Option(..., "--smiles", "-s", help="文献化合物 SMILES"),
+    title: str | None = typer.Option(None, "--title", help="文献标题"),
+    authors: str | None = typer.Option(None, "--authors", help="作者"),
+    year: int | None = typer.Option(None, "--year", help="年份"),
+    h1: str | None = typer.Option(None, "--h1", help="文献 1H NMR 文本"),
+    c13: str | None = typer.Option(None, "--c13", help="文献 13C NMR 文本"),
+    note: str | None = typer.Option(None, "--note", help="备注"),
+    db: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """把一条文献参考（含可选 NMR 文本）加入本地库。"""
+    try:
+        record = make_literature_record(
+            doi=doi,
+            smiles=smiles,
+            title=title,
+            authors=authors,
+            year=year,
+            nmr_1h=h1,
+            nmr_13c=c13,
+            note=note,
+        )
+        with closing(connect(db)) as conn:
+            upsert_literature(conn, record)
+    except DatabaseError as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+    typer.echo(f"已写入文献 {record.doi}（{record.smiles}）")
+
+
+@lit_app.command("list")
+def lit_list(db: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite 数据库路径")) -> None:
+    """列出本地库中的所有文献参考。"""
+    with closing(connect(db)) as conn:
+        records = all_literature(conn)
+    if not records:
+        typer.echo("（无文献）")
+        return
+    for record in records:
+        title = record.title or "-"
+        typer.echo(f"{record.doi:28s}  {record.year or '----'}  {title}  {record.smiles}")
+
+
+@lit_app.command("search")
+def lit_search(
+    smiles: str = typer.Option(..., "--smiles", "-s", help="查询 SMILES 或 SMARTS"),
+    substructure: bool = typer.Option(False, "--substructure", help="子结构搜索"),
+    similarity: bool = typer.Option(False, "--similarity", help="相似度搜索（Tanimoto）"),
+    threshold: float = typer.Option(0.7, "--threshold", help="相似度阈值（0–1）"),
+    top_k: int = typer.Option(10, "--top-k", help="相似度最多返回条数"),
+    db: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """在文献库中按子结构或相似度检索。"""
+    from chem_workflow.search import SearchError, similarity_search, substructure_search
+
+    if substructure == similarity:
+        typer.secho(
+            "错误: 请二选一：--substructure 或 --similarity。", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=1)
+    try:
+        with closing(connect(db)) as conn:
+            records = all_literature(conn)
+        if substructure:
+            hits = substructure_search(records, smiles)
+        else:
+            hits = similarity_search(records, smiles, threshold=threshold, top_k=top_k)
+    except (DatabaseError, SearchError) as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    if not hits:
+        typer.echo("（无匹配）")
+        return
+    for hit in hits:
+        score = f"  score {hit.score:.3f}" if hit.score is not None else ""
+        typer.echo(f"{hit.record.doi:28s}  {hit.record.title or '-'}  {hit.record.smiles}{score}")
+
+
+@lit_app.command("compare")
+def lit_compare(
+    smiles: str = typer.Option(..., "--smiles", "-s", help="当前化合物 SMILES"),
+    threshold: float = typer.Option(0.4, "--threshold", help="相似度阈值（0–1）"),
+    top_k: int = typer.Option(5, "--top-k", help="最多返回条数"),
+    db: Path = typer.Option(DEFAULT_DB_PATH, "--db", help="SQLite 数据库路径"),
+) -> None:
+    """按相似度列出文献命中及其报道的 NMR 文本，供人工对照当前化合物。"""
+    from chem_workflow.search import SearchError, similarity_search
+
+    try:
+        with closing(connect(db)) as conn:
+            records = all_literature(conn)
+        hits = similarity_search(records, smiles, threshold=threshold, top_k=top_k)
+    except (DatabaseError, SearchError) as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    if not hits:
+        typer.echo("（无相似文献）")
+        return
+    for hit in hits:
+        lit = hit.record
+        typer.echo(f"## {lit.doi}  (similarity {hit.score:.3f})")
+        if lit.title:
+            typer.echo(f"   {lit.title}")
+        if lit.nmr_1h:
+            typer.echo(f"   1H:  {lit.nmr_1h}")
+        if lit.nmr_13c:
+            typer.echo(f"   13C: {lit.nmr_13c}")

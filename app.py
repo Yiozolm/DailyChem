@@ -18,7 +18,7 @@ import streamlit as st
 
 from chem_workflow.assignment import (
     AssignmentError,
-    assign_1h_nmr,
+    assign_nmr,
     assignment_rows_for_review,
     render_assignment_draft,
 )
@@ -26,10 +26,13 @@ from chem_workflow.config import load_config
 from chem_workflow.database import (
     DatabaseError,
     all_compounds,
+    all_literature,
     connect,
+    make_literature_record,
     make_record,
     scan_archive,
     upsert_compound,
+    upsert_literature,
 )
 from chem_workflow.ir import IRInputError, format_ir, parse_ir_peaks
 from chem_workflow.llm import (
@@ -53,7 +56,11 @@ from chem_workflow.ms import (
     format_hrms,
     hrms_from_manual,
 )
-from chem_workflow.nmr import NMRInputError, parse_mestrenova_multiplet_table
+from chem_workflow.nmr import (
+    NMRInputError,
+    parse_mestrenova_multiplet_table,
+    parse_shift_list,
+)
 from chem_workflow.nmr_formatter import (
     NMRFormatError,
     NMRFormatOptions,
@@ -88,7 +95,7 @@ from chem_workflow.ui_support import (
 from chem_workflow.uv import UVInputError, format_uv, parse_uv_peaks
 
 Nucleus = Literal["1H", "13C", "19F", "31P"]
-SUPPORTED_FORMAT_NUCLEI = ("1H", "13C")
+SUPPORTED_FORMAT_NUCLEI = ("1H", "13C", "19F", "31P")
 CONFIG = load_config()
 
 
@@ -241,9 +248,11 @@ def _nmr_formatter_page() -> None:
     left, right = st.columns([1, 1], gap="large")
     with left:
         nucleus = _nucleus_selectbox()
-        default_frequency = (
-            CONFIG.default_frequency_13c if nucleus == "13C" else CONFIG.default_frequency_1h
-        )
+        default_frequency = {
+            "13C": CONFIG.default_frequency_13c,
+            "19F": 376.0,
+            "31P": 162.0,
+        }.get(nucleus, CONFIG.default_frequency_1h)
         frequency = st.number_input(
             "Frequency (MHz)",
             min_value=0.0,
@@ -295,7 +304,7 @@ def _handle_nmr_format(
     inline_text: str,
 ) -> None:
     if nucleus not in SUPPORTED_FORMAT_NUCLEI:
-        st.error("当前 publication-style formatter 只支持 1H / 13C；19F / 31P 留到后续扩展。")
+        st.error(f"暂不支持 {nucleus} 的 publication-style 格式化。")
         return
     try:
         source = _read_nmr_source(uploaded=uploaded, inline_text=inline_text)
@@ -313,8 +322,7 @@ def _handle_nmr_format(
                 sort_descending=sort_descending,
             ),
         )
-        state_key = "nmr_1h_text" if nucleus == "1H" else "nmr_13c_text"
-        st.session_state[state_key] = formatted
+        st.session_state[_nmr_state_key(nucleus)] = formatted
         st.success(f"{nucleus} NMR 已格式化。")
     except (NMRInputError, NMRFormatError, UnicodeDecodeError, ValueError) as error:
         st.error(str(error))
@@ -726,11 +734,14 @@ def _project_export_page() -> None:
 def _assignment_page() -> None:
     _page_header(
         "NMR Assignment Draft",
-        "用规则库和结构特征生成 1H NMR 候选归属；结果必须人工确认。",
+        "用规则库和结构特征生成 1H / 13C 候选归属；结果必须人工确认。",
     )
 
     left, right = st.columns([0.95, 1.05], gap="large")
     with left:
+        nucleus = cast(Nucleus, st.radio(
+            "核种", ("1H", "13C"), horizontal=True, key="assignment_nucleus"
+        ))
         structure_source = st.radio(
             "结构来源",
             ("使用当前 SMILES", "手动输入 SMILES", "上传结构文件"),
@@ -751,9 +762,13 @@ def _assignment_page() -> None:
         col_freq, col_solvent = st.columns(2)
         with col_freq:
             frequency = st.number_input(
-                "1H Frequency (MHz)",
+                "Frequency (MHz)",
                 min_value=0.0,
-                value=CONFIG.default_frequency_1h,
+                value=(
+                    CONFIG.default_frequency_13c
+                    if nucleus == "13C"
+                    else CONFIG.default_frequency_1h
+                ),
                 step=1.0,
                 key="assignment_frequency",
             )
@@ -762,25 +777,33 @@ def _assignment_page() -> None:
                 "Solvent", value=CONFIG.default_solvent, key="assignment_solvent"
             )
 
-        nmr_mode = st.radio("1H peak list 输入方式", ("上传文件", "粘贴文本"), horizontal=True)
+        if nucleus == "1H":
+            nmr_hint = "粘贴 1H MestReNova multiplet table"
+            nmr_default = "Name\tShift\tH's\tClass\nA\t7.25\t5\tm\nB\t3.80\t3\ts\n"
+        else:
+            nmr_hint = "粘贴 13C 化学位移列表（逗号/换行分隔）"
+            nmr_default = "166.7, 132.8, 130.5, 129.6, 128.4, 60.9, 14.4"
+
+        nmr_mode = st.radio("peak list 输入方式", ("上传文件", "粘贴文本"), horizontal=True)
         uploaded_nmr = None
         inline_nmr = ""
         if nmr_mode == "上传文件":
             uploaded_nmr = st.file_uploader(
-                "上传 1H peak list（TSV / CSV / TXT）",
+                "上传 peak list（TSV / CSV / TXT）",
                 type=["tsv", "csv", "txt"],
                 key="assignment_nmr_upload",
             )
         else:
             inline_nmr = st.text_area(
-                "粘贴 1H MestReNova multiplet table",
-                value="Name\tShift\tH's\tClass\nA\t7.25\t5\tm\nB\t3.80\t3\ts\n",
+                nmr_hint,
+                value=nmr_default,
                 height=220,
                 key="assignment_nmr_inline",
             )
 
         if st.button("生成 assignment 草稿", type="primary", width="stretch"):
             _handle_assignment_generate(
+                nucleus=nucleus,
                 structure_source=structure_source,
                 smiles=smiles,
                 uploaded_structure=uploaded_structure,
@@ -796,6 +819,7 @@ def _assignment_page() -> None:
 
 def _handle_assignment_generate(
     *,
+    nucleus: Nucleus,
     structure_source: str,
     smiles: str,
     uploaded_structure: object,
@@ -822,20 +846,45 @@ def _handle_assignment_generate(
                 mol = parse_smiles(smiles_input)
 
             nmr_source = _read_nmr_source(uploaded=uploaded_nmr, inline_text=inline_nmr)
-            spectrum = parse_mestrenova_multiplet_table(
-                nmr_source,
-                nucleus="1H",
-                frequency_mhz=frequency,
-                solvent=optional_text(solvent),
-            )
-            draft = assign_1h_nmr(mol, spectrum)
+            if nucleus == "1H":
+                spectrum = parse_mestrenova_multiplet_table(
+                    nmr_source,
+                    nucleus="1H",
+                    frequency_mhz=frequency,
+                    solvent=optional_text(solvent),
+                )
+            else:
+                spectrum = parse_shift_list(
+                    nmr_source,
+                    nucleus=nucleus,
+                    frequency_mhz=frequency,
+                    solvent=optional_text(solvent),
+                )
+            draft = assign_nmr(mol, spectrum)
             markdown = render_assignment_draft(draft)
             st.session_state["assignment_markdown"] = markdown
             st.session_state["assignment_rows"] = assignment_rows_for_review(draft)
+            st.session_state["assignment_warnings"] = [
+                {"severity": w.severity, "code": w.code, "message": w.message}
+                for w in draft.warnings
+            ]
             st.session_state["compound_smiles"] = draft.compound_smiles
             st.success("assignment 草稿已生成；请人工确认后再使用。")
     except (AssignmentError, NMRInputError, StructureInputError, ValueError) as error:
         st.error(str(error))
+
+
+def _render_assignment_warnings() -> None:
+    warnings = st.session_state.get("assignment_warnings")
+    if not isinstance(warnings, list):
+        return
+    for warning in warnings:
+        code = warning.get("code", "")
+        message = warning.get("message", "")
+        if code == "signal_count_match":
+            st.success(f"✅ {message}")
+        elif code == "signal_count_mismatch":
+            st.warning(f"⚠️ {message}")
 
 
 def _show_assignment_result() -> None:
@@ -844,6 +893,8 @@ def _show_assignment_result() -> None:
     if not isinstance(markdown, str) or not markdown:
         st.info("生成后这里会显示候选归属、风险提示和人工确认表。")
         return
+
+    _render_assignment_warnings()
 
     st.subheader("Editable review table")
     if isinstance(rows, list):
@@ -910,11 +961,13 @@ def _history_search_page() -> None:
         key="history_db_path",
     )
 
-    ingest_tab, search_tab = st.tabs(["入库", "检索"])
+    ingest_tab, search_tab, lit_tab = st.tabs(["入库", "检索", "文献"])
     with ingest_tab:
         _history_ingest_section(db_path)
     with search_tab:
         _history_search_section(db_path)
+    with lit_tab:
+        _history_literature_section(db_path)
 
 
 def _history_ingest_section(db_path: str) -> None:
@@ -1015,6 +1068,85 @@ def _handle_history_search(db_path: str, *, query: str, mode: str, threshold: fl
             for hit in hits
         ]
         st.success(f"找到 {len(hits)} 个匹配。")
+    except (DatabaseError, SearchError) as error:
+        st.error(str(error))
+
+
+def _history_literature_section(db_path: str) -> None:
+    st.markdown("**添加文献参考**")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        doi = st.text_input("DOI", value="", key="lit_doi", placeholder="10.1021/...")
+        lit_smiles = st.text_input("SMILES", value=_state_text("compound_smiles"), key="lit_smiles")
+        title = st.text_input("Title", value="", key="lit_title")
+    with col_b:
+        lit_h1 = st.text_area("1H NMR", value="", height=80, key="lit_h1")
+        lit_c13 = st.text_area("13C NMR", value="", height=80, key="lit_c13")
+    if st.button("加入文献库", type="primary", width="stretch", key="lit_add"):
+        if optional_text(doi) is None or optional_text(lit_smiles) is None:
+            st.warning("请至少填写 DOI 和 SMILES。")
+        else:
+            _handle_literature_add(
+                db_path, doi=doi, smiles=lit_smiles, title=title, h1=lit_h1, c13=lit_c13
+            )
+
+    st.divider()
+    st.markdown("**按相似度对照文献**")
+    query = st.text_input(
+        "查询 SMILES", value=_state_text("compound_smiles"), key="lit_compare_smiles"
+    )
+    threshold = st.slider(
+        "相似度阈值", min_value=0.0, max_value=1.0, value=0.4, step=0.05, key="lit_threshold"
+    )
+    if st.button("对照文献", width="stretch", key="lit_compare"):
+        _handle_literature_compare(db_path, query=query, threshold=threshold)
+
+    rows = st.session_state.get("lit_compare_rows")
+    if isinstance(rows, list):
+        if rows:
+            st.dataframe(rows, width="stretch")
+        else:
+            st.info("没有相似的文献。")
+
+
+def _handle_literature_add(
+    db_path: str, *, doi: str, smiles: str, title: str, h1: str, c13: str
+) -> None:
+    try:
+        record = make_literature_record(
+            doi=doi,
+            smiles=smiles,
+            title=optional_text(title),
+            nmr_1h=optional_text(h1),
+            nmr_13c=optional_text(c13),
+        )
+        with closing(connect(db_path)) as conn:
+            upsert_literature(conn, record)
+        st.success(f"已写入文献 {record.doi}。")
+    except DatabaseError as error:
+        st.error(str(error))
+
+
+def _handle_literature_compare(db_path: str, *, query: str, threshold: float) -> None:
+    if optional_text(query) is None:
+        st.warning("请提供查询 SMILES。")
+        return
+    try:
+        with closing(connect(db_path)) as conn:
+            records = all_literature(conn)
+        hits = similarity_search(records, query, threshold=threshold)
+        st.session_state["lit_compare_rows"] = [
+            {
+                "doi": hit.record.doi,
+                "title": hit.record.title or "",
+                "score": hit.score,
+                "1H": hit.record.nmr_1h or "",
+                "13C": hit.record.nmr_13c or "",
+                "smiles": hit.record.smiles,
+            }
+            for hit in hits
+        ]
+        st.success(f"找到 {len(hits)} 篇相似文献。")
     except (DatabaseError, SearchError) as error:
         st.error(str(error))
 
@@ -1124,12 +1256,12 @@ def _read_nmr_source(*, uploaded: object, inline_text: str) -> str:
     return inline_text
 
 
+def _nmr_state_key(nucleus: Nucleus) -> str:
+    return f"nmr_{nucleus.lower()}_text"
+
+
 def _show_nmr_preview(nucleus: Nucleus) -> None:
-    if nucleus not in SUPPORTED_FORMAT_NUCLEI:
-        st.info("19F / 31P 的输入入口已预留；publication-style formatter 会在后续扩展。")
-        return
-    state_key = "nmr_1h_text" if nucleus == "1H" else "nmr_13c_text"
-    text = st.session_state.get(state_key)
+    text = st.session_state.get(_nmr_state_key(nucleus))
     if isinstance(text, str) and text:
         st.subheader(f"{nucleus} NMR Preview")
         _downloadable_code(

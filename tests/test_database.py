@@ -171,3 +171,71 @@ def test_cli_db_import_from_archive(tmp_path: Path) -> None:
 
     assert result.exit_code == 0
     assert "已导入 1 个化合物" in result.output
+
+
+def test_literature_upsert_and_get(tmp_path: Path) -> None:
+    from chem_workflow.database import (
+        get_literature_by_doi,
+        make_literature_record,
+        upsert_literature,
+    )
+
+    with closing(_db(tmp_path)) as conn:
+        record = make_literature_record(
+            doi="10.1/x",
+            smiles="O=C(OCC)c1ccccc1",  # non-canonical input
+            title="Ester paper",
+            nmr_13c="13C NMR δ 166.7, 60.9, 14.4.",
+        )
+        upsert_literature(conn, record)
+
+        fetched = get_literature_by_doi(conn, "10.1/x")
+        assert fetched is not None
+        assert fetched.smiles == "CCOC(=O)c1ccccc1"  # canonicalized
+        assert fetched.title == "Ester paper"
+        assert fetched.nmr_13c.startswith("13C NMR")
+
+
+def test_literature_upsert_idempotent(tmp_path: Path) -> None:
+    from chem_workflow.database import (
+        all_literature,
+        make_literature_record,
+        upsert_literature,
+    )
+
+    with closing(_db(tmp_path)) as conn:
+        rec = make_literature_record(doi="10.1/x", smiles=ETHYL_BENZOATE)
+        upsert_literature(conn, rec)
+        upsert_literature(conn, rec)
+        assert len(all_literature(conn)) == 1
+
+
+def test_cli_lit_add_and_search(tmp_path: Path) -> None:
+    runner = CliRunner()
+    db = str(tmp_path / "history.sqlite")
+    runner.invoke(app, ["lit", "add", "--doi", "10.1/x", "-s", ETHYL_BENZOATE, "--db", db])
+    runner.invoke(app, ["lit", "add", "--doi", "10.1/y", "-s", METHYL_BENZOATE, "--db", db])
+
+    result = runner.invoke(app, ["lit", "search", "-s", "c1ccccc1", "--substructure", "--db", db])
+
+    assert result.exit_code == 0
+    assert "10.1/x" in result.output
+    assert "10.1/y" in result.output
+
+
+def test_cli_lit_compare(tmp_path: Path) -> None:
+    runner = CliRunner()
+    db = str(tmp_path / "history.sqlite")
+    runner.invoke(
+        app,
+        [
+            "lit", "add", "--doi", "10.1/x", "-s", ETHYL_BENZOATE,
+            "--c13", "13C δ 166.7.", "--db", db,
+        ],
+    )
+
+    result = runner.invoke(app, ["lit", "compare", "-s", ETHYL_BENZOATE, "--db", db])
+
+    assert result.exit_code == 0
+    assert "10.1/x" in result.output
+    assert "13C δ 166.7." in result.output

@@ -25,9 +25,10 @@
 - RDKit 原生解析 `.cdx`/`.cdxml`（详见 `docs/design-docs/cdx-handling-spike.md`）。
 
 ### NMR
-- 输入：MestReNova `View → Tables → Multiplets` 复制的 tab-separated 文本，兼容常见 comma/semicolon CSV。
-- publication-style 文本：支持 **1H / 13C**。19F / 31P 在 UI 预留入口但暂不格式化（给清晰提示）。
-- assignment：规则库 + RDKit 子结构的 **1H 候选归属草稿**，始终保留人工确认状态。
+- 输入：MestReNova `View → Tables → Multiplets` 复制的 tab-separated 文本，兼容常见 comma/semicolon CSV；13C/19F/31P 也接受纯化学位移列表。
+- publication-style 文本：支持 **1H / 13C / 19F / 31P**。
+- assignment：规则库 + RDKit 子结构/碳类型的 **1H / 13C 候选归属草稿**，始终保留人工确认状态。
+- 一致性检查：用结构对称性数出理论唯一信号数，与实测峰数比对（「对得上/对不上」的轻量判断），不预测化学位移数值。
 
 ### MS / IR / UV（Phase 10）
 - HRMS：从结构 + adduct 自动算 calc m/z，或手动输入；自动算 ppm error。
@@ -42,6 +43,7 @@
 
 ### 历史检索（Phase 11）
 - 本地 SQLite 库；按 compound ID / SMILES / 子结构 / 相似度检索历史化合物。
+- 文献参考：手录 DOI / 标题 / SMILES / 报道 NMR，并按结构相似度对照当前化合物。
 
 ## 4. 明确不做（边界）
 

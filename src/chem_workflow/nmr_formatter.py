@@ -21,6 +21,7 @@ class NMRFormatOptions:
     include_frequency: bool = True
     proton_shift_decimals: int = 2
     carbon_shift_decimals: int = 1
+    hetero_shift_decimals: int = 1
     j_decimals: int = 1
 
 
@@ -30,8 +31,8 @@ def format_nmr_spectrum(
 ) -> str:
     """Format an `NMRSpectrum` as a standard characterization line.
 
-    The first implementation targets publication/common lab-note style for 1H and 13C NMR.
-    Other nuclei are intentionally rejected until their formatting rules are defined.
+    1H gets full multiplicity/J/integration rendering. 13C / 19F / 31P are rendered as shift lists
+    (no integration), which matches common publication style for those nuclei.
     """
     opts = options or NMRFormatOptions()
     if not spectrum.peaks:
@@ -40,9 +41,12 @@ def format_nmr_spectrum(
     if spectrum.nucleus == "1H":
         return _format_1h_nmr(spectrum, opts)
     if spectrum.nucleus == "13C":
-        return _format_13c_nmr(spectrum, opts)
+        return _format_shift_list_nmr(spectrum, opts, opts.carbon_shift_decimals)
+    if spectrum.nucleus in ("19F", "31P"):
+        return _format_shift_list_nmr(spectrum, opts, opts.hetero_shift_decimals)
     raise NMRFormatError(
-        f"Formatting for {spectrum.nucleus!r} is not implemented yet; supported nuclei: 1H, 13C."
+        f"Formatting for {spectrum.nucleus!r} is not implemented yet; "
+        "supported nuclei: 1H, 13C, 19F, 31P."
     )
 
 
@@ -52,9 +56,13 @@ def _format_1h_nmr(spectrum: NMRSpectrum, options: NMRFormatOptions) -> str:
     return f"{_format_header(spectrum, options)} δ {', '.join(rendered)}."
 
 
-def _format_13c_nmr(spectrum: NMRSpectrum, options: NMRFormatOptions) -> str:
+def _format_shift_list_nmr(
+    spectrum: NMRSpectrum,
+    options: NMRFormatOptions,
+    decimals: int,
+) -> str:
     peaks = _ordered_peaks(spectrum.peaks, options.sort_descending)
-    rendered = [_format_13c_peak(peak, options) for peak in peaks]
+    rendered = [_format_shift_peak(peak, options, decimals) for peak in peaks]
     return f"{_format_header(spectrum, options)} δ {', '.join(rendered)}."
 
 
@@ -94,8 +102,8 @@ def _format_1h_peak(peak: NMRPeak, options: NMRFormatOptions) -> str:
     return f"{shift} ({', '.join(details)})"
 
 
-def _format_13c_peak(peak: NMRPeak, options: NMRFormatOptions) -> str:
-    shift = _format_decimal(peak.shift_ppm, options.carbon_shift_decimals)
+def _format_shift_peak(peak: NMRPeak, options: NMRFormatOptions, decimals: int) -> str:
+    shift = _format_decimal(peak.shift_ppm, decimals)
     if options.include_assignment and peak.assignment:
         return f"{shift} ({peak.assignment})"
     return shift

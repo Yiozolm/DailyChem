@@ -11,12 +11,13 @@ import typer
 from chem_workflow import __version__
 from chem_workflow.assignment import (
     AssignmentError,
-    assign_1h_nmr,
+    assign_nmr,
     load_assignment_rules,
     render_assignment_draft,
 )
 from chem_workflow.config import config_app
-from chem_workflow.database import db_app
+from chem_workflow.consistency import ConsistencyError, check_signal_count
+from chem_workflow.database import db_app, lit_app
 from chem_workflow.ir import ir_app
 from chem_workflow.llm_cli import llm_app
 from chem_workflow.logging_setup import configure_logging
@@ -24,6 +25,7 @@ from chem_workflow.ms import ms_app
 from chem_workflow.nmr import (
     NMRInputError,
     parse_mestrenova_multiplet_table,
+    parse_shift_list,
 )
 from chem_workflow.nmr_formatter import (
     NMRFormatError,
@@ -69,6 +71,7 @@ app.add_typer(ms_app, name="ms")
 app.add_typer(ir_app, name="ir")
 app.add_typer(uv_app, name="uv")
 app.add_typer(db_app, name="db")
+app.add_typer(lit_app, name="lit")
 app.add_typer(config_app, name="config")
 
 
@@ -400,8 +403,9 @@ def nmr_assign(
         exists=False,
     ),
     inline: str | None = typer.Option(
-        None, "--inline", "-i", help="直接贴 1H multiplet 表文本，与 path 二选一"
+        None, "--inline", "-i", help="直接贴 multiplet 表文本，与 path 二选一"
     ),
+    nucleus: str = typer.Option("1H", "--nucleus", "-n", help="核种：1H 或 13C"),
     smiles: str | None = typer.Option(
         None, "--smiles", "-s", help="目标化合物 SMILES，与 --structure 二选一"
     ),
@@ -421,34 +425,42 @@ def nmr_assign(
     rules: Path | None = typer.Option(
         None,
         "--rules",
-        help="自定义 1H assignment 规则 YAML；默认 data/rules/nmr_1h_rules.yaml",
+        help="自定义 assignment 规则 YAML；默认按核种选 nmr_1h_rules / nmr_13c_rules",
         exists=False,
     ),
     out: Path | None = typer.Option(None, "--out", "-o", help="输出 Markdown 草稿到文件"),
 ) -> None:
-    """生成 1H NMR 候选 assignment 草稿；不会给出唯一自动定论。"""
+    """生成 1H / 13C NMR 候选 assignment 草稿；不会给出唯一自动定论。"""
     if (path is None) == (inline is None):
         raise typer.BadParameter("请提供 path 或 --inline 二者之一")
     if (smiles is None) == (structure is None):
         raise typer.BadParameter("请提供 --smiles 或 --structure 二者之一")
+    if nucleus not in ("1H", "13C"):
+        raise typer.BadParameter("--nucleus 必须是 1H 或 13C")
 
     source: str | Path = path if path is not None else inline  # type: ignore[assignment]
     try:
         mol = parse_smiles(smiles) if smiles is not None else load_structure(structure)
-        spectrum = parse_mestrenova_multiplet_table(
-            source,
-            nucleus="1H",
-            frequency_mhz=frequency,
-            solvent=solvent,
-            sample_id=sample_id,
-        )
-        draft = assign_1h_nmr(
-            mol,
-            spectrum,
-            rules=load_assignment_rules(rules) if rules is not None else None,
-        )
+        if nucleus == "1H":
+            spectrum = parse_mestrenova_multiplet_table(
+                source,
+                nucleus=nucleus,
+                frequency_mhz=frequency,
+                solvent=solvent,
+                sample_id=sample_id,
+            )
+        else:
+            spectrum = parse_shift_list(
+                source,
+                nucleus=nucleus,
+                frequency_mhz=frequency,
+                solvent=solvent,
+                sample_id=sample_id,
+            )
+        assignment_rules = load_assignment_rules(rules) if rules is not None else None
+        draft = assign_nmr(mol, spectrum, rules=assignment_rules)
         markdown = render_assignment_draft(draft)
-    except (AssignmentError, NMRInputError, StructureInputError) as e:
+    except (AssignmentError, NMRInputError, StructureInputError, ConsistencyError) as e:
         typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1) from e
 
@@ -458,6 +470,53 @@ def nmr_assign(
         typer.echo(f"已写入 {out}")
         return
     typer.echo(markdown, nl=False)
+
+
+@nmr_app.command("check")
+def nmr_check(
+    path: Path | None = typer.Argument(
+        None,
+        help="NMR peak list 文件路径（tab/CSV/semicolon separated）",
+        exists=False,
+    ),
+    inline: str | None = typer.Option(
+        None, "--inline", "-i", help="直接贴 peak 表文本，与 path 二选一"
+    ),
+    nucleus: str = typer.Option("13C", "--nucleus", "-n", help="核种：1H / 13C / 19F / 31P"),
+    smiles: str | None = typer.Option(
+        None, "--smiles", "-s", help="目标化合物 SMILES，与 --structure 二选一"
+    ),
+    structure: Path | None = typer.Option(
+        None,
+        "--structure",
+        help="结构文件路径，与 --smiles 二选一",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+    ),
+) -> None:
+    """对比结构理论唯一信号数与实测峰数（对得上/对不上的快速判断）。"""
+    if (path is None) == (inline is None):
+        raise typer.BadParameter("请提供 path 或 --inline 二者之一")
+    if (smiles is None) == (structure is None):
+        raise typer.BadParameter("请提供 --smiles 或 --structure 二者之一")
+    if nucleus not in ("1H", "13C", "19F", "31P"):
+        raise typer.BadParameter("--nucleus 必须是 1H / 13C / 19F / 31P")
+
+    source: str | Path = path if path is not None else inline  # type: ignore[assignment]
+    try:
+        mol = parse_smiles(smiles) if smiles is not None else load_structure(structure)
+        if nucleus == "1H":
+            spectrum = parse_mestrenova_multiplet_table(source, nucleus=nucleus)
+        else:
+            spectrum = parse_shift_list(source, nucleus=nucleus)
+        check = check_signal_count(mol, spectrum)
+    except (NMRInputError, StructureInputError, ConsistencyError) as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    color = typer.colors.GREEN if check.verdict == "match" else typer.colors.YELLOW
+    typer.secho(check.message, fg=color)
 
 
 @records_app.command("generate")

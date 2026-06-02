@@ -14,6 +14,7 @@ import yaml
 from rdkit import Chem
 from rdkit.Chem import rdchem
 
+from chem_workflow.consistency import check_signal_count
 from chem_workflow.nmr import NMRPeak, NMRSpectrum, normalize_multiplicity
 from chem_workflow.structure import mol_info
 
@@ -21,6 +22,9 @@ AssignmentStatus = Literal["candidate", "needs_review", "confirmed"]
 WarningSeverity = Literal["info", "warning", "risk"]
 
 DEFAULT_RULES_PATH = Path(__file__).resolve().parents[2] / "data" / "rules" / "nmr_1h_rules.yaml"
+DEFAULT_13C_RULES_PATH = (
+    Path(__file__).resolve().parents[2] / "data" / "rules" / "nmr_13c_rules.yaml"
+)
 
 _FALLBACK_RULES: tuple[dict[str, object], ...] = (
     {
@@ -178,7 +182,7 @@ class AssignmentWarning:
 
 @dataclass(frozen=True)
 class AssignmentDraft:
-    """Rule-based assignment draft for a 1H NMR spectrum."""
+    """Rule-based assignment draft for an NMR spectrum."""
 
     compound_smiles: str
     formula: str
@@ -186,6 +190,7 @@ class AssignmentDraft:
     features: tuple[DetectedFeature, ...]
     peak_assignments: tuple[PeakAssignment, ...]
     warnings: tuple[AssignmentWarning, ...]
+    nucleus: str = "1H"
     note: str = field(
         default=(
             "Rule-based candidate assignment only. Manual confirmation is required before use in "
@@ -194,13 +199,17 @@ class AssignmentDraft:
     )
 
 
-def load_assignment_rules(path: str | Path | None = None) -> list[AssignmentRule]:
-    """Load 1H NMR assignment rules from YAML.
+def load_assignment_rules(
+    path: str | Path | None = None,
+    *,
+    default_path: Path = DEFAULT_RULES_PATH,
+) -> list[AssignmentRule]:
+    """Load NMR assignment rules from YAML.
 
-    If `path` is omitted, `data/rules/nmr_1h_rules.yaml` is used when present; otherwise a small
-    built-in fallback keeps installed packages usable.
+    If `path` is omitted, `default_path` is used when present; otherwise a small built-in fallback
+    keeps installed packages usable.
     """
-    raw_rules = _load_raw_rules(path)
+    raw_rules = _load_raw_rules(path, default_path=default_path)
     return [_parse_rule(raw) for raw in raw_rules]
 
 
@@ -219,27 +228,107 @@ def detect_proton_features(mol: Chem.Mol) -> tuple[DetectedFeature, ...]:
     return tuple(_dedupe_features(features))
 
 
+def detect_carbon_features(mol: Chem.Mol) -> tuple[DetectedFeature, ...]:
+    """Detect common carbon-type structural features for 13C assignment."""
+    features: list[DetectedFeature] = []
+    for atom in mol.GetAtoms():
+        if atom.GetAtomicNum() != 6:
+            continue
+        feature = _classify_carbon(atom)
+        if feature is not None:
+            features.append(feature)
+    return tuple(_dedupe_features(features))
+
+
+def _classify_carbon(atom: Chem.Atom) -> DetectedFeature | None:
+    idx = atom.GetIdx()
+    neighbors = list(atom.GetNeighbors())
+    has_double_o = any(_is_double_bond_to_oxygen(bond, atom) for bond in atom.GetBonds())
+    has_triple_n = any(
+        bond.GetBondType() == rdchem.BondType.TRIPLE
+        and bond.GetOtherAtom(atom).GetAtomicNum() == 7
+        for bond in atom.GetBonds()
+    )
+    has_triple_c = any(
+        bond.GetBondType() == rdchem.BondType.TRIPLE
+        and bond.GetOtherAtom(atom).GetAtomicNum() == 6
+        for bond in atom.GetBonds()
+    )
+    has_double_c = any(
+        bond.GetBondType() == rdchem.BondType.DOUBLE
+        and bond.GetOtherAtom(atom).GetAtomicNum() == 6
+        for bond in atom.GetBonds()
+    )
+
+    if has_double_o:
+        return _carbon_feature("carbonyl_C", "carbonyl / carboxyl C", idx)
+    if has_triple_n:
+        return _carbon_feature("nitrile_C", "nitrile C", idx)
+    if atom.GetIsAromatic():
+        return _carbon_feature("aromatic_C", "aromatic C", idx)
+    if has_triple_c:
+        return _carbon_feature("alkyne_C", "alkyne C", idx)
+    if has_double_c:
+        return _carbon_feature("alkene_C", "alkene C", idx)
+    if any(neighbor.GetAtomicNum() == 8 for neighbor in neighbors):
+        return _carbon_feature("O_C", "O-bound C (OCH3 / OCH2 / OCH)", idx)
+    if any(neighbor.GetAtomicNum() == 7 for neighbor in neighbors):
+        return _carbon_feature("N_C", "N-bound C", idx)
+    return _carbon_feature("aliphatic_C", "aliphatic C", idx)
+
+
+def _carbon_feature(feature_id: str, label: str, idx: int) -> DetectedFeature:
+    return DetectedFeature(
+        feature_id=feature_id,
+        label=label,
+        description=label,
+        atom_indices=(idx,),
+    )
+
+
 def assign_1h_nmr(
     mol: Chem.Mol,
     spectrum: NMRSpectrum,
     *,
     rules: list[AssignmentRule] | None = None,
 ) -> AssignmentDraft:
-    """Generate a candidate assignment draft for a 1H NMR spectrum."""
+    """Generate a candidate 1H assignment draft (thin wrapper over :func:`assign_nmr`)."""
     if spectrum.nucleus != "1H":
-        raise AssignmentError("当前 assignment assistant 只支持 1H NMR。")
+        raise AssignmentError("assign_1h_nmr 只支持 1H NMR；其它核种请用 assign_nmr。")
+    return assign_nmr(mol, spectrum, rules=rules)
+
+
+def assign_nmr(
+    mol: Chem.Mol,
+    spectrum: NMRSpectrum,
+    *,
+    rules: list[AssignmentRule] | None = None,
+) -> AssignmentDraft:
+    """Generate a candidate assignment draft for a 1H or 13C NMR spectrum."""
+    if spectrum.nucleus not in ("1H", "13C"):
+        raise AssignmentError(
+            f"当前 assignment assistant 只支持 1H / 13C；收到 {spectrum.nucleus}。"
+        )
     if not spectrum.peaks:
         raise AssignmentError("NMR spectrum 没有 peak，无法生成 assignment 草稿。")
 
-    assignment_rules = rules or load_assignment_rules()
+    is_carbon = spectrum.nucleus == "13C"
+    if rules is not None:
+        assignment_rules = rules
+    elif is_carbon:
+        assignment_rules = load_assignment_rules(default_path=DEFAULT_13C_RULES_PATH)
+    else:
+        assignment_rules = load_assignment_rules()
+
     info = mol_info(mol)
-    features = detect_proton_features(mol)
+    features = detect_carbon_features(mol) if is_carbon else detect_proton_features(mol)
     peak_assignments = tuple(
         _assign_peak(peak, assignment_rules, features) for peak in spectrum.peaks
     )
     expected_protons = _expected_proton_count(mol)
     warnings = _build_warnings(
         spectrum=spectrum,
+        mol=mol,
         expected_protons=expected_protons,
         features=features,
         rules=assignment_rules,
@@ -252,13 +341,19 @@ def assign_1h_nmr(
         features=features,
         peak_assignments=peak_assignments,
         warnings=warnings,
+        nucleus=spectrum.nucleus,
     )
 
 
 def render_assignment_draft(draft: AssignmentDraft) -> str:
     """Render an assignment draft as Markdown."""
+    proton_line = (
+        f"- Expected proton count from structure: {draft.expected_protons}"
+        if draft.nucleus == "1H"
+        else f"- Formula proton count: {draft.expected_protons}"
+    )
     lines: list[str] = [
-        "# 1H NMR Assignment Draft",
+        f"# {draft.nucleus} NMR Assignment Draft",
         "",
         "> Candidate assignment only. Manual confirmation is required.",
         "",
@@ -266,7 +361,7 @@ def render_assignment_draft(draft: AssignmentDraft) -> str:
         "",
         f"- Canonical SMILES: `{draft.compound_smiles}`",
         f"- Formula: {draft.formula}",
-        f"- Expected proton count from structure: {draft.expected_protons}",
+        proton_line,
         "",
         "## Detected structural features",
         "",
@@ -302,8 +397,12 @@ def assignment_rows_for_review(draft: AssignmentDraft) -> list[dict[str, object]
     return rows
 
 
-def _load_raw_rules(path: str | Path | None) -> list[dict[str, object]]:
-    candidate = Path(path) if path is not None else DEFAULT_RULES_PATH
+def _load_raw_rules(
+    path: str | Path | None,
+    *,
+    default_path: Path = DEFAULT_RULES_PATH,
+) -> list[dict[str, object]]:
+    candidate = Path(path) if path is not None else default_path
     if candidate.exists():
         try:
             payload = yaml.safe_load(candidate.read_text(encoding="utf-8"))
@@ -441,14 +540,17 @@ def _integration_matches(value: float, expected_values: tuple[float, ...]) -> bo
 def _build_warnings(
     *,
     spectrum: NMRSpectrum,
+    mol: Chem.Mol,
     expected_protons: int,
     features: tuple[DetectedFeature, ...],
     rules: list[AssignmentRule],
     peak_assignments: tuple[PeakAssignment, ...],
 ) -> tuple[AssignmentWarning, ...]:
     warnings: list[AssignmentWarning] = []
-    warnings.extend(_integration_warnings(spectrum, expected_protons))
-    warnings.extend(_aromatic_warnings(spectrum, features))
+    warnings.extend(_signal_count_warnings(mol, spectrum))
+    if spectrum.nucleus == "1H":
+        warnings.extend(_integration_warnings(spectrum, expected_protons))
+        warnings.extend(_aromatic_warnings(spectrum, features))
     warnings.extend(_unexplained_peak_warnings(peak_assignments))
     warnings.extend(_missing_feature_warnings(rules, features, peak_assignments))
     warnings.extend(_feature_cautions(features))
@@ -461,6 +563,29 @@ def _build_warnings(
             )
         )
     return tuple(warnings)
+
+
+def _signal_count_warnings(
+    mol: Chem.Mol,
+    spectrum: NMRSpectrum,
+) -> list[AssignmentWarning]:
+    check = check_signal_count(mol, spectrum)
+    if check.verdict == "match":
+        return [
+            AssignmentWarning(
+                code="signal_count_match",
+                message=check.message,
+                severity="info",
+            )
+        ]
+    severity: WarningSeverity = "risk" if check.verdict == "more_observed" else "warning"
+    return [
+        AssignmentWarning(
+            code="signal_count_mismatch",
+            message=check.message,
+            severity=severity,
+        )
+    ]
 
 
 def _integration_warnings(

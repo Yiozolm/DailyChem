@@ -57,11 +57,10 @@ uv run streamlit run app.py
 
 当前 publication-style formatter 支持：
 
-- `1H`
-- `13C`
+- `1H`（带 multiplicity / J / 积分）
+- `13C` / `19F` / `31P`（位移列表）
 
-`19F` / `31P` 已在 UI 中预留入口，但格式化规则会放到后续 phase 扩展。格式化结果会显示为
-可复制代码块，Streamlit 代码块右上角提供 copy 图标；也可以下载为 `.txt`。
+格式化结果会显示为可复制代码块，Streamlit 代码块右上角提供 copy 图标；也可以下载为 `.txt`。
 
 格式化后的 `1H` / `13C` 文本会保存到当前会话，自动带入实验记录页的对应 characterization 字段。
 
@@ -124,9 +123,12 @@ Project Export 会调用 Phase 6 的归档逻辑，创建标准 compound 文件�
 
 ## 页面 6：NMR Assignment Draft
 
-该页面用于生成 `1H NMR` 候选 assignment 草稿。它会结合结构特征和
-`data/rules/nmr_1h_rules.yaml` 里的规则，为每个 peak 给出 possible candidates、
-confidence 和 warning。
+该页面用于生成 `1H` / `13C` NMR 候选 assignment 草稿。选好核种后，它会结合结构特征和
+规则库（`data/rules/nmr_1h_rules.yaml` 或 `nmr_13c_rules.yaml`），为每个 peak 给出
+possible candidates、confidence 和 warning。1H 用 MestReNova multiplet 表，13C 用化学位移列表。
+
+结果区顶部会显示**理论信号数一致性**判断：把结构理论上应有的唯一信号数（RDKit 对称性）
+与实测峰数对比——一致（绿色）/ 实测偏多 / 实测偏少（黄色），帮助快速判断「对不对得上」。
 
 重要原则：
 
@@ -147,6 +149,8 @@ confidence 和 warning。
   - *子结构*：返回包含该子结构的所有历史化合物；
   - *相似度*：用 Morgan 指纹 + Tanimoto，按可调阈值过滤并按分数降序展示。
   - 结果以表格显示 compound ID / 分子式 / 分子量 / 相似度分数 / SMILES。
+- **文献**：录入文献参考（DOI + SMILES + 可选 1H/13C 文本），并按相似度对照当前化合物，
+  展示相似文献报道的 NMR 数据，供人工比对。
 
 历史库只存本地，不随 git 提交。
 
@@ -175,8 +179,9 @@ LLM 草稿不能直接作为最终结论或论文 supporting information，必�
 ## 当前限制
 
 - Web UI 是本地辅助工具，不做用户权限或服务器部署设计。
-- NMR formatter 目前只支持 `1H` / `13C` publication-style 输出。
+- NMR formatter 支持 `1H` / `13C` / `19F` / `31P`；assignment 候选归属支持 `1H` / `13C`。
 - HRMS adduct 目前支持单电荷常见集合（`[M+H]+` / `[M+Na]+` / `[M+K]+` / `[M+NH4]+` / `[M-H]-` / `[M+H-H2O]+`）。
-- Assignment assistant 目前只支持 `1H NMR` 候选归属。
+- 一致性检查只比对**信号数**，不预测化学位移数值。
+- 文献检索为本地手录条目 + 结构对照，不做在线 DOI 解析 / 全文抓取。
 - LLM 人工确认状态只存当前 Streamlit 会话，刷新页面会丢失。
 - Word 报告导出暂未实现，当前推荐先使用 Markdown。

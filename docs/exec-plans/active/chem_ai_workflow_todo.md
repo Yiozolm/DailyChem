@@ -43,7 +43,7 @@
 
   - [ ] 只支持 1H NMR
   - [X] 支持 1H + 13C NMR
-  - [x] 是否需要支持 19F / 31P（UI 预留入口；后端 publication-style formatter 暂不支持，显示清晰提示）
+  - [x] 是否需要支持 19F / 31P（已实现 publication-style 格式化；assignment 暂仅 1H/13C）
   - [X] 是否需要支持 MS / HRMS
   - [X] 是否需要英文实验记录
   - [X] 是否需要中文实验记录
@@ -388,6 +388,11 @@ chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --nucleus 1
 - 已生成示例：`examples/processed/nmr_report.txt`。
 - 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 75 passed。
 
+## 增强备注（2026-06-02）
+
+- 扩展 formatter 支持 **19F / 31P**：与 13C 同构的 shift-list 渲染（`_format_shift_list_nmr`，`NMRFormatOptions.hetero_shift_decimals`）；UI NMR 页四核全部可格式化，移除了 19F/31P「暂不支持」提示。
+- 输出示例：`19F NMR (376 MHz, CDCl3) δ -62.5, -113.8.`、`31P NMR (162 MHz, CDCl3) δ 23.4.`
+
 ---
 
 # Phase 5：实验记录自动生成
@@ -700,6 +705,12 @@ alkene_H:
 - Web UI 新增 NMR Assignment Draft 页面，提供 editable review table，允许人工修改
   selected assignment、manual note 和确认状态。
 
+## 增强备注（2026-06-02）
+
+- **13C 峰归属**：新增 `data/rules/nmr_13c_rules.yaml`（carbonyl / aromatic / alkene / alkyne / nitrile / O-C / N-C / aliphatic 区间）和 `detect_carbon_features`；`assign_1h_nmr` 泛化为 `assign_nmr(mol, spectrum)`（按核种选规则库与 feature detector），`assign_1h_nmr` 保留为薄包装。CLI `chemwf nmr assign --nucleus 1H|13C`；UI assignment 页加核种选择。13C peak list 用新 `parse_shift_list`（逗号/换行分隔的位移列表）。
+- **理论信号数一致性检查**（对话「对得上就OK，对不上就错」的轻量实现）：新增 `consistency.py`，用 RDKit `CanonicalRankAtoms(breakTies=False)` 数结构唯一信号数，与实测峰数比对给 match / more_observed / fewer_observed。接进 assignment warnings（`signal_count_match` / `signal_count_mismatch`），并提供独立命令 `chemwf nmr check --nucleus 13C --smiles ... <peaklist>`；UI 结果区用绿色/黄色高亮 verdict。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 226 passed, 1 skipped。
+
 ---
 
 # Phase 9：LLM 辅助层
@@ -877,10 +888,10 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## 文献检索；后续增强
 
-- [ ] 通过 DOI / paper title 记录文献来源
-- [ ] 保存文献中的 NMR 数据
-- [ ] 对比当前化合物和文献化合物
-- [ ] 给出相似结构的历史谱图参考
+- [x] 通过 DOI / paper title 记录文献来源
+- [x] 保存文献中的 NMR 数据
+- [x] 对比当前化合物和文献化合物
+- [x] 给出相似结构的历史谱图参考（按相似度列出文献命中及其报道 NMR 文本）
 
 ## 验收标准
 
@@ -902,7 +913,7 @@ UV-vis (MeOH) λmax 254 nm.
 - 检索：子结构用 `Chem.MolFromSmarts`→`MolFromSmiles` 回退 + `HasSubstructMatch`；相似度用 `rdFingerprintGenerator` Morgan(r=2, 2048) + Tanimoto，过阈值后降序取 top_k。指纹不持久化，检索时即时重算（稳健、对本地规模足够）；DB 里非法 SMILES 脏数据自动跳过。
 - CLI：`chemwf db add / import / list / get / search`，通用 `--db`（默认 `data/chem_workflow.sqlite`）。
 - Streamlit 新增「History Search」页（第 7 页）：入库（从归档导入 / 添加当前化合物）+ 检索（子结构 / 相似度，结果用 dataframe 展示）。
-- 文献检索（DOI / 文献 NMR 对比 / 相似结构历史谱图参考）按计划留待下一轮。
+- 文献检索（2026-06-02 增强）：新增 `literature` 表 + `LiteratureRecord` + `chemwf lit add/list/search/compare`；`search.py` 泛化为接受任何带 `.smiles` 的记录（compound 或 literature 共用子结构/相似度引擎）。UI History Search 页新增「文献」tab（录入 + 相似度对照，展示报道 NMR）。仍不做在线 DOI 解析 / 全文抓取。
 - 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 183 passed, 1 skipped。
 
 ---

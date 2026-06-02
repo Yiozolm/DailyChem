@@ -4,15 +4,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from chem_workflow.assignment import (
     assign_1h_nmr,
+    assign_nmr,
+    detect_carbon_features,
     detect_proton_features,
     render_assignment_draft,
 )
 from chem_workflow.cli import app
-from chem_workflow.nmr import parse_mestrenova_multiplet_table
+from chem_workflow.nmr import NMRPeak, NMRSpectrum, parse_mestrenova_multiplet_table
 from chem_workflow.structure import parse_smiles
 
 
@@ -130,3 +133,86 @@ def test_cli_nmr_assign_writes_output_file(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert result.output == f"已写入 {out}\n"
     assert "Candidate assignment only" in out.read_text(encoding="utf-8")
+
+
+def _c13_spectrum(shifts: list[float]) -> NMRSpectrum:
+    return NMRSpectrum(
+        nucleus="13C",
+        frequency_mhz=101,
+        solvent="CDCl3",
+        peaks=[NMRPeak(shift_ppm=s) for s in shifts],
+    )
+
+
+def test_detect_carbon_features_for_ethyl_benzoate() -> None:
+    features = detect_carbon_features(parse_smiles("CCOC(=O)c1ccccc1"))
+    feature_ids = {f.feature_id for f in features}
+
+    assert "carbonyl_C" in feature_ids
+    assert "aromatic_C" in feature_ids
+    assert "O_C" in feature_ids
+    assert "aliphatic_C" in feature_ids
+
+
+def test_assign_nmr_13c_candidates() -> None:
+    mol = parse_smiles("CCOC(=O)c1ccccc1")
+    spectrum = _c13_spectrum([166.7, 132.8, 130.5, 129.6, 128.4, 60.9, 14.4])
+
+    draft = assign_nmr(mol, spectrum)
+
+    assert draft.nucleus == "13C"
+    labels = {
+        candidate.label
+        for assignment in draft.peak_assignments
+        for candidate in assignment.candidates
+    }
+    assert "carbonyl / carboxyl C" in labels
+    assert "aromatic C" in labels
+    # Signal count matches (7 unique carbons, 7 peaks) -> info-level match warning.
+    assert any(w.code == "signal_count_match" for w in draft.warnings)
+
+
+def test_assign_nmr_13c_flags_extra_peak() -> None:
+    mol = parse_smiles("CCOC(=O)c1ccccc1")
+    spectrum = _c13_spectrum([166.7, 132.8, 130.5, 129.6, 128.4, 60.9, 14.4, 99.9])
+
+    draft = assign_nmr(mol, spectrum)
+
+    assert any(w.code == "signal_count_mismatch" for w in draft.warnings)
+
+
+def test_assign_1h_nmr_still_works() -> None:
+    mol = parse_smiles("COc1ccccc1")
+    spectrum = _spectrum("Name\tShift\tH's\tClass\nA\t7.25\t5\tm\nB\t3.80\t3\ts\n")
+
+    draft = assign_1h_nmr(mol, spectrum)
+
+    assert draft.nucleus == "1H"
+    assert draft.peak_assignments
+
+
+def test_assign_1h_nmr_rejects_non_proton() -> None:
+    mol = parse_smiles("CCOC(=O)c1ccccc1")
+    with pytest.raises(ValueError, match="1H"):
+        assign_1h_nmr(mol, _c13_spectrum([166.7]))
+
+
+def test_cli_nmr_assign_13c() -> None:
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app,
+        [
+            "nmr",
+            "assign",
+            "--nucleus",
+            "13C",
+            "--smiles",
+            "CCOC(=O)c1ccccc1",
+            "--inline",
+            "166.7, 60.9, 14.4",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "13C NMR Assignment Draft" in result.output

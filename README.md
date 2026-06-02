@@ -84,6 +84,12 @@ uv run chemwf nmr assign examples/raw/nmr_multiplet_table_clean_example.tsv \
 
 该命令只生成候选归属和风险提示，不会声称自动 assignment 一定正确。
 
+### 信号数一致性检查（谱对不对得上结构）
+
+```bash
+uv run chemwf nmr check --nucleus 13C --smiles "CCOC(=O)c1ccccc1" --inline "166.7, 132.8, 130.5, 129.6, 128.4, 60.9, 14.4"
+```
+
 ### MS / IR / UV 表征文本
 
 ```bash
@@ -98,6 +104,14 @@ uv run chemwf uv format examples/raw/uv_peaks_example.txt --solvent MeOH
 uv run chemwf db add --id C001 --smiles "CCOC(=O)c1ccccc1"
 uv run chemwf db search --smiles "c1ccccc1" --substructure
 uv run chemwf db search --smiles "CCOC(=O)c1ccccc1" --similarity --threshold 0.5
+```
+
+### 文献参考与对照
+
+```bash
+uv run chemwf lit add --doi 10.1021/xxxxx --title "..." --smiles "CCOC(=O)c1ccccc1" --c13 "13C NMR ..."
+uv run chemwf lit search --smiles "c1ccccc1" --substructure
+uv run chemwf lit compare --smiles "CCOC(=O)c1ccccc1"
 ```
 
 ### 配置与备份

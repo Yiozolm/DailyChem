@@ -403,3 +403,37 @@ def parse_mestrenova_multiplet_table(
         sample_id=sample_id,
         peaks=peaks,
     )
+
+
+def parse_shift_list(
+    source: str | Path,
+    *,
+    nucleus: Literal["1H", "13C", "19F", "31P"] = "13C",
+    frequency_mhz: float | None = None,
+    solvent: str | None = None,
+    sample_id: str | None = None,
+) -> NMRSpectrum:
+    """Parse a plain chemical-shift list into an `NMRSpectrum`.
+
+    Accepts shifts separated by commas / whitespace / newlines, e.g. ``166.7, 132.8, 14.4`` or one
+    value per line. Useful for 13C / 19F / 31P peak lists that have no multiplicity / integration.
+    An optional leading ``Shift`` header line is ignored.
+    """
+    text = _read_source(source)
+    shifts: list[float] = []
+    for token in re.split(r"[,;\s]+", text.strip()):
+        if not token or token.lower() in {"shift", "ppm", "δ"}:
+            continue
+        try:
+            shifts.append(float(token))
+        except ValueError as e:
+            raise NMRInputError(f"无法解析化学位移：{token!r}") from e
+    if not shifts:
+        raise NMRInputError("没有解析到任何化学位移。请提供逗号/空白/换行分隔的数值列表。")
+    return NMRSpectrum(
+        nucleus=nucleus,
+        frequency_mhz=frequency_mhz,
+        solvent=solvent,
+        sample_id=sample_id,
+        peaks=[NMRPeak(shift_ppm=value) for value in shifts],
+    )

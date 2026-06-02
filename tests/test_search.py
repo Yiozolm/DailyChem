@@ -75,3 +75,25 @@ def test_search_skips_dirty_smiles_rows() -> None:
     hits = substructure_search(records, "c1ccccc1")
 
     assert {hit.compound.compound_id for hit in hits} == {"C001"}
+
+
+def _lit_records():
+    from chem_workflow.database import make_literature_record
+
+    return [
+        make_literature_record(doi="10.1/a", smiles=ETHYL_BENZOATE),
+        make_literature_record(doi="10.1/b", smiles=HEXANE),
+    ]
+
+
+def test_search_works_on_literature_records() -> None:
+    hits = substructure_search(_lit_records(), "c1ccccc1")
+
+    assert [hit.record.doi for hit in hits] == ["10.1/a"]
+
+
+def test_similarity_search_on_literature_records() -> None:
+    hits = similarity_search(_lit_records(), ETHYL_BENZOATE, threshold=0.4)
+
+    assert hits[0].record.doi == "10.1/a"
+    assert hits[0].score == 1.0
