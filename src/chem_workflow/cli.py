@@ -15,9 +15,11 @@ from chem_workflow.assignment import (
     load_assignment_rules,
     render_assignment_draft,
 )
+from chem_workflow.config import config_app
 from chem_workflow.database import db_app
 from chem_workflow.ir import ir_app
 from chem_workflow.llm_cli import llm_app
+from chem_workflow.logging_setup import configure_logging
 from chem_workflow.ms import ms_app
 from chem_workflow.nmr import (
     NMRInputError,
@@ -38,6 +40,7 @@ from chem_workflow.records import (
 from chem_workflow.storage import (
     RawFileGroup,
     StorageError,
+    backup_compound_archive,
     init_compound_archive,
 )
 from chem_workflow.structure import (
@@ -66,17 +69,42 @@ app.add_typer(ms_app, name="ms")
 app.add_typer(ir_app, name="ir")
 app.add_typer(uv_app, name="uv")
 app.add_typer(db_app, name="db")
+app.add_typer(config_app, name="config")
 
 
 @app.callback()
 def _root() -> None:
     """chemwf 根命令。"""
+    configure_logging()
 
 
 @app.command()
 def version() -> None:
     """打印版本号。"""
     typer.echo(__version__)
+
+
+@app.command("backup")
+def backup(
+    compound_id: str = typer.Option(..., "--id", help="要备份的化合物 ID"),
+    project_dir: Path = typer.Option(
+        Path("."), "--project-dir", "-p", help="项目归档根目录（含 compounds/）"
+    ),
+    backup_root: Path | None = typer.Option(
+        None, "--backup-root", help="备份输出目录；默认 <project-dir>/backups/"
+    ),
+) -> None:
+    """把某 compound 的归档文件夹打包成 zip 备份（只读源，不覆盖原始数据）。"""
+    try:
+        created = backup_compound_archive(
+            compound_id=compound_id,
+            project_dir=project_dir,
+            backup_root=backup_root,
+        )
+    except StorageError as e:
+        typer.secho(f"错误: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+    typer.echo(f"已备份到 {created}")
 
 
 @app.command("init-compound")

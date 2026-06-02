@@ -10,7 +10,10 @@ from pathlib import Path
 
 from rdkit import Chem
 
+from chem_workflow.logging_setup import get_logger
 from chem_workflow.structure import draw_structure, load_structure, mol_info, parse_smiles
+
+logger = get_logger(__name__)
 
 
 class StorageError(ValueError):
@@ -121,6 +124,7 @@ def init_compound_archive(
     summary_path = compound_dir / "reports" / "summary.md"
     _write_text(summary_path, _render_summary(metadata), overwrite=overwrite)
 
+    logger.info("initialized compound archive: %s", compound_dir)
     return CompoundArchiveResult(
         compound_dir=compound_dir,
         metadata_path=metadata_path,
@@ -128,6 +132,39 @@ def init_compound_archive(
         structure_files=tuple(structure_files),
         copied_raw_files=tuple(copied_files),
     )
+
+
+def backup_compound_archive(
+    *,
+    compound_id: str,
+    project_dir: str | Path,
+    backup_root: str | Path | None = None,
+    timestamp: str | None = None,
+) -> Path:
+    """Zip a compound's archive folder into ``backups/`` without touching the source.
+
+    Returns the path to the created zip. Raises :class:`StorageError` if the compound folder does
+    not exist. The source folder is only read, never modified.
+    """
+    safe_id = _validate_compound_id(compound_id)
+    compound_dir = Path(project_dir) / "compounds" / safe_id
+    if not compound_dir.is_dir():
+        raise StorageError(f"找不到 compound 归档目录：{compound_dir}")
+
+    backups_dir = Path(backup_root) if backup_root is not None else Path(project_dir) / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    stamp = timestamp or datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    archive_base = backups_dir / f"{safe_id}_{stamp}"
+
+    # make_archive appends ".zip"; root_dir/base_dir keep the compound folder as the zip root.
+    created = shutil.make_archive(
+        str(archive_base),
+        "zip",
+        root_dir=str(compound_dir.parent),
+        base_dir=safe_id,
+    )
+    logger.info("backed up compound %s -> %s", safe_id, created)
+    return Path(created)
 
 
 def _validate_compound_id(compound_id: str) -> str:

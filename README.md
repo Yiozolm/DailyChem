@@ -33,6 +33,9 @@ run.bat
 默认会在浏览器打开 DailyChem 页面。若没有自动打开，可访问终端提示的本地地址，
 通常是 `http://localhost:8501`。
 
+完整的端到端使用指南（面向化学同学）见 [`docs/user_guide.md`](docs/user_guide.md)，
+常见问题见 [`docs/faq.md`](docs/faq.md)。
+
 ### 命令行工具（开发者）
 
 ```bash
@@ -80,6 +83,30 @@ uv run chemwf nmr assign examples/raw/nmr_multiplet_table_clean_example.tsv \
 ```
 
 该命令只生成候选归属和风险提示，不会声称自动 assignment 一定正确。
+
+### MS / IR / UV 表征文本
+
+```bash
+uv run chemwf ms hrms --smiles "CCOC(=O)c1ccccc1" --adduct "[M+Na]+" --found 173.0570
+uv run chemwf ir format examples/raw/ir_peaks_example.txt
+uv run chemwf uv format examples/raw/uv_peaks_example.txt --solvent MeOH
+```
+
+### 本地历史检索
+
+```bash
+uv run chemwf db add --id C001 --smiles "CCOC(=O)c1ccccc1"
+uv run chemwf db search --smiles "c1ccccc1" --substructure
+uv run chemwf db search --smiles "CCOC(=O)c1ccccc1" --similarity --threshold 0.5
+```
+
+### 配置与备份
+
+```bash
+uv run chemwf config init          # 生成 .chemwf.toml（图形界面默认值来源）
+uv run chemwf config show
+uv run chemwf backup --id C001 --project-dir examples/project_demo
+```
 
 ## 测试
 

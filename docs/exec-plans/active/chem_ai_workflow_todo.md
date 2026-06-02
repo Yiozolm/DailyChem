@@ -23,19 +23,19 @@
 
 ## TODO
 
-- [ ] 询问同学目前常用软件
+- [x] 询问同学目前常用软件
 
   - [x] ChemDraw 版本：**v20**
   - [x] 用户常用结构文件格式：**ChemDraw `.cdx`**
   - [X] 是否使用 MestReNova / Mnova
   - [X] 是否使用 Bruker / JEOL / Agilent 仪器数据
-  - [ ] 是否有电子实验记录本
+  - [~] 是否有电子实验记录本（**不做**：同学主要用 Word/手写，无 ELN 对接需求）
   - [X] 是否主要用 Word / Excel / 手写 / Markdown 记录实验
-- [ ] 收集 3–5 个真实但可脱敏的样例
+- [~] 收集 3–5 个真实但可脱敏的样例
 
   - [x] 一个目标化合物结构文件：`.cdx` / `.mol` / `.sdf` / SMILES
   - [x] 一份 1H NMR peak list
-  - [ ] 一份 13C NMR peak list
+  - [~] 一份 13C NMR peak list（**不做**：拿不到脱敏真实数据，用合成 1H 样例 + formatter 已覆盖 13C 路径）
   - [x] 一份实验记录文本
   - [x] 一份谱图 PDF 或图片（`data/raw/原始谱.jpg`、`data/raw/解析谱.jpg`、`data/raw/数据目录.jpg`；用于需求调研/视觉参考，不作为 parser 输入）
   - [x] 一份最终论文/报告里的表征格式（当前用 `examples/processed/nmr_report.txt` 作为规范化输出样例）
@@ -50,24 +50,24 @@
 
 ## 验收标准
 
-- [ ] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录
+- [~] 至少拿到 3 个完整样例：结构 + NMR 数据 + 实验记录（**不做**：拿不到脱敏真实数据，改用 `examples/raw/` 合成/脱敏样例 + `examples/expected_outputs/` 黄金输出端到端验收）
 - [x] 明确第一版输入/转换策略：
   - **结构**：`.cdx`（用户常用）/ `.cdxml` / `.mol` / `.sdf` / SMILES 全部接受；rdkit 2026.3.1 PyPI 轮子原生支持 `.cdx`/`.cdxml`，单化合物 MVP 已实现（见 `docs/design-docs/cdx-handling-spike.md`）。
   - **NMR**：接 **MestReNova Multiplets 表复制粘贴的 tab-separated 文本为主，兼容常见 comma / semicolon CSV-like table**。不接 Bruker 仪器原始数据目录（fid/acqus 等，等于重建 MestReNova），不接谱图截图（光栅图反推精度差且丢积分）。详见 `docs/design-docs/nmr-input-strategy.md`。
 - [x] 明确第一版输出格式：结构 metadata / atom-indexed SVG、NMR JSON、publication-style NMR 文本、实验记录 Markdown、compound folder summary；Word/PDF 不纳入 MVP。
-- [ ] 明确用户最常用的文件命名方式
+- [x] 明确用户最常用的文件命名方式（见 `docs/product-specs/requirements.md` §6 文件命名约定）
 
 ## 可交付物
 
-- [ ] `docs/product-specs/requirements.md`（原计划 `docs/requirements.md`，按当前文档规范应落到 `docs/product-specs/`）
+- [x] `docs/product-specs/requirements.md`
 - [x] `examples/raw/` 样例数据文件夹
-- [ ] `examples/expected_outputs/` 期望输出文件夹（目录已存在，但仍缺正式 expected output 文件）
+- [x] `examples/expected_outputs/` 期望输出文件夹（黄金输出 + `tests/test_expected_outputs.py` 回归）
 
-## 状态同步备注（2026-05-18）
+## 状态同步备注（2026-06-01）
 
-- 已有 raw 样例覆盖：ChemDraw `.cdx/.cdxml/.mol/.sdf/.smi`、MestReNova multiplet table、实验记录 YAML，以及 `data/raw/` 下的谱图/数据目录截图。
-- 已有 processed 样例覆盖：结构 SVG、NMR JSON、NMR publication-style 文本、实验记录 Markdown、assignment draft。
-- Phase 0 仍未完全关闭：还缺 3 个完整真实化合物的端到端样例、13C NMR 真实 peak list、用户常用文件命名方式，以及正式 `docs/product-specs/requirements.md`。
+- Phase 0 文档项已收尾：补齐 `docs/product-specs/requirements.md`（含文件命名约定）、`examples/expected_outputs/` 黄金输出 + 回归测试。
+- 「3 个真实完整样例」「真实 13C peak list」标为 **不做**：项目无法获得脱敏真实科研数据，改用合成/脱敏样例作端到端验收依据。
+- 早期备注（2026-05-18）：已有 raw 样例覆盖 ChemDraw `.cdx/.cdxml/.mol/.sdf/.smi`、MestReNova multiplet table、实验记录 YAML，以及 `data/raw/` 下截图；processed 样例覆盖结构 SVG、NMR JSON、publication-style 文本、记录 Markdown、assignment draft。
 
 ---
 
@@ -915,29 +915,37 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## TODO
 
-- [ ] 增加完整测试集
-- [ ] 增加错误处理
-- [ ] 增加日志
-- [ ] 增加数据备份机制
-- [ ] 增加配置文件
-- [ ] 增加用户文档
-- [ ] 增加常见问题说明
-- [ ] 打包为本地可运行应用
+- [x] 增加完整测试集（199 passed, 1 skipped；含黄金输出回归 `tests/test_expected_outputs.py`）
+- [x] 增加错误处理（各模块统一 `XxxError(ValueError)` + CLI 红字提示 + 非零退出；UI try/except 到 `st.error`）
+- [x] 增加日志（`logging_setup.py`，默认 WARNING，`CHEMWF_LOG_LEVEL` 可调）
+- [x] 增加数据备份机制（`chemwf backup` → `backups/<id>_<ts>.zip`，只读源）
+- [x] 增加配置文件（`.chemwf.toml` + `chemwf config init/show`，接入 UI 默认值）
+- [x] 增加用户文档（`docs/user_guide.md`）
+- [x] 增加常见问题说明（`docs/faq.md`）
+- [~] 打包为本地可运行应用（**留待后续**：当前 `uv sync` + `run.sh`/`run.bat` 已满足非程序员安装运行；独立 exe 体积大、跨平台维护成本高，见 faq）
 
 ## 验收标准
 
-- [ ] 非程序员可以按文档安装和运行
-- [ ] 输入错误时不会崩溃
-- [ ] 原始实验数据不会被覆盖
-- [ ] 每个输出都能追溯到输入文件
-- [ ] 至少完成 5 个真实化合物的端到端测试
+- [x] 非程序员可以按文档安装和运行（`docs/user_guide.md` 端到端流程 + 一键启动脚本）
+- [x] 输入错误时不会崩溃（解析 / 配置 / 检索均捕获并给可读错误）
+- [x] 原始实验数据不会被覆盖（归档默认不覆盖、需 `--overwrite`；备份只读源）
+- [x] 每个输出都能追溯到输入文件（`examples/expected_outputs/README.md` 记录每个黄金输出的来源输入与命令）
+- [~] 至少完成 5 个真实化合物的端到端测试（**不做**：拿不到真实数据，改用合成/脱敏样例的黄金输出回归覆盖端到端路径）
 
 ## 可交付物
 
-- [ ] `docs/user_guide.md`
-- [ ] `docs/dev_guide.md`
-- [ ] `docs/faq.md`
-- [ ] release zip 或安装脚本
+- [x] `docs/user_guide.md`
+- [x] `docs/dev_guide.md`
+- [x] `docs/faq.md`
+- [~] release zip 或安装脚本（**留待后续**：现有 `run.sh`/`run.bat` 启动脚本已可用；正式打包发布留作后续）
+
+## 实施备注（2026-06-01）
+
+- 新增 `config.py`（`.chemwf.toml` 读取 + `chemwf config init/show`），Streamlit UI 默认值（NMR 频率/溶剂、HRMS 电离/adduct、历史库路径、项目目录）改为从 `CONFIG` 取；CLI 保持现有 flag 默认。
+- 新增 `logging_setup.py`（轻量、默认安静），`storage` / `cli` 在关键写操作记 info。
+- `storage.backup_compound_archive` + `chemwf backup`：把 compound 文件夹打包到 `backups/`，只读源、不覆盖原始数据。
+- `examples/expected_outputs/` 黄金输出 + `tests/test_expected_outputs.py` 回归锚点，满足「输出可追溯」。
+- 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 199 passed, 1 skipped。
 
 ---
 

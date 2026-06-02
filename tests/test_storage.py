@@ -12,6 +12,7 @@ from chem_workflow.cli import app
 from chem_workflow.storage import (
     RawFileGroup,
     StorageError,
+    backup_compound_archive,
     init_compound_archive,
 )
 
@@ -160,3 +161,41 @@ def test_cli_init_compound_copies_raw_file(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "copied:   1 file(s)" in result.output
     assert (project_dir / "compounds" / "C008" / "nmr" / "1H" / "raw" / "h1.tsv").exists()
+
+
+def test_backup_compound_archive_creates_zip(tmp_path: Path) -> None:
+    init_compound_archive(
+        compound_id="C001", project_dir=tmp_path, smiles="CCOC(=O)c1ccccc1"
+    )
+
+    created = backup_compound_archive(
+        compound_id="C001", project_dir=tmp_path, timestamp="20260601_000000"
+    )
+
+    assert created.exists()
+    assert created.name == "C001_20260601_000000.zip"
+    import zipfile
+
+    names = zipfile.ZipFile(created).namelist()
+    assert any(n.startswith("C001/") for n in names)
+    # Source archive must be untouched.
+    assert (tmp_path / "compounds" / "C001" / "metadata.json").exists()
+
+
+def test_backup_missing_compound_raises(tmp_path: Path) -> None:
+    with pytest.raises(StorageError, match="找不到"):
+        backup_compound_archive(compound_id="ZZZ", project_dir=tmp_path)
+
+
+def test_cli_backup(tmp_path: Path) -> None:
+    init_compound_archive(
+        compound_id="C001", project_dir=tmp_path, smiles="CCOC(=O)c1ccccc1"
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app, ["backup", "--id", "C001", "--project-dir", str(tmp_path)]
+    )
+
+    assert result.exit_code == 0
+    assert "已备份到" in result.output

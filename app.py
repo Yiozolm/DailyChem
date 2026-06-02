@@ -22,6 +22,7 @@ from chem_workflow.assignment import (
     assignment_rows_for_review,
     render_assignment_draft,
 )
+from chem_workflow.config import load_config
 from chem_workflow.database import (
     DatabaseError,
     all_compounds,
@@ -88,6 +89,7 @@ from chem_workflow.uv import UVInputError, format_uv, parse_uv_peaks
 
 Nucleus = Literal["1H", "13C", "19F", "31P"]
 SUPPORTED_FORMAT_NUCLEI = ("1H", "13C")
+CONFIG = load_config()
 
 
 def main() -> None:
@@ -239,14 +241,16 @@ def _nmr_formatter_page() -> None:
     left, right = st.columns([1, 1], gap="large")
     with left:
         nucleus = _nucleus_selectbox()
-        default_frequency = 101.0 if nucleus == "13C" else 400.0
+        default_frequency = (
+            CONFIG.default_frequency_13c if nucleus == "13C" else CONFIG.default_frequency_1h
+        )
         frequency = st.number_input(
             "Frequency (MHz)",
             min_value=0.0,
             value=default_frequency,
             step=1.0,
         )
-        solvent = st.text_input("Solvent", value="CDCl3")
+        solvent = st.text_input("Solvent", value=CONFIG.default_solvent)
         sample_id = st.text_input("Sample ID", value=_state_text("compound_id", "C001"))
         include_assignment = st.checkbox("保留 assignment", value=False)
         sort_descending = st.checkbox("按 δ 从高到低排序", value=True)
@@ -340,8 +344,14 @@ def _hrms_section() -> None:
     )
     col_a, col_b = st.columns(2)
     with col_a:
-        adduct = st.selectbox("Adduct", available_adducts(), key="hrms_adduct")
-        ionization = st.text_input("Ionization", value="ESI", key="hrms_ionization")
+        adducts = available_adducts()
+        adduct_index = (
+            adducts.index(CONFIG.default_adduct) if CONFIG.default_adduct in adducts else 0
+        )
+        adduct = st.selectbox("Adduct", adducts, index=adduct_index, key="hrms_adduct")
+        ionization = st.text_input(
+            "Ionization", value=CONFIG.default_ionization, key="hrms_ionization"
+        )
     with col_b:
         found = st.text_input("Found m/z（可选）", value="", key="hrms_found")
 
@@ -743,12 +753,14 @@ def _assignment_page() -> None:
             frequency = st.number_input(
                 "1H Frequency (MHz)",
                 min_value=0.0,
-                value=400.0,
+                value=CONFIG.default_frequency_1h,
                 step=1.0,
                 key="assignment_frequency",
             )
         with col_solvent:
-            solvent = st.text_input("Solvent", value="CDCl3", key="assignment_solvent")
+            solvent = st.text_input(
+                "Solvent", value=CONFIG.default_solvent, key="assignment_solvent"
+            )
 
         nmr_mode = st.radio("1H peak list 输入方式", ("上传文件", "粘贴文本"), horizontal=True)
         uploaded_nmr = None
@@ -894,7 +906,7 @@ def _history_search_page() -> None:
 
     db_path = st.text_input(
         "数据库路径",
-        value=_state_text("history_db_path", "data/chem_workflow.sqlite"),
+        value=_state_text("history_db_path", CONFIG.db_path),
         key="history_db_path",
     )
 
@@ -909,7 +921,9 @@ def _history_ingest_section(db_path: str) -> None:
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown("**从归档批量导入**")
-        project_dir = st.text_input("项目根目录", value=".", key="history_project_dir")
+        project_dir = st.text_input(
+            "项目根目录", value=CONFIG.project_dir, key="history_project_dir"
+        )
         if st.button("扫描归档并导入", width="stretch", key="history_import"):
             try:
                 records = scan_archive(project_dir)

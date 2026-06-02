@@ -14,7 +14,11 @@
 
 ## Current User-Facing Docs
 
-- [`ui_usage.md`](ui_usage.md): Phase 7 Streamlit 本地 Web UI 使用说明。
+- [`user_guide.md`](user_guide.md): 面向化学同学的端到端使用指南（安装 → 七页工作流）。
+- [`ui_usage.md`](ui_usage.md): Streamlit 本地 Web UI 逐页说明。
+- [`faq.md`](faq.md): 常见问题。
+- [`dev_guide.md`](dev_guide.md): 开发者指南（结构、命令、加新模块套路）。
+- [`product-specs/requirements.md`](product-specs/requirements.md): 产品需求规格与范围边界。
 
 ## Current Active Exec Plans
 
