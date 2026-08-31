@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from streamlit.testing.v1 import AppTest
+
+APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 
 
 def test_streamlit_app_renders_compound_setup() -> None:
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
 
     app.run(timeout=5)
 
@@ -16,7 +20,7 @@ def test_streamlit_app_renders_compound_setup() -> None:
 
 
 def test_streamlit_app_parses_default_smiles() -> None:
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     app.button[0].click().run(timeout=5)
@@ -40,7 +44,7 @@ def _radio_by_label(app, label: str):  # noqa: ANN001
 
 
 def test_streamlit_app_generates_assignment_draft() -> None:
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     _select_workflow(app, "6 · NMR Assignment").run(timeout=10)
@@ -55,7 +59,7 @@ def test_streamlit_app_generates_assignment_draft() -> None:
 
 
 def test_streamlit_app_assignment_13c() -> None:
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     _select_workflow(app, "6 · NMR Assignment").run(timeout=10)
@@ -68,7 +72,7 @@ def test_streamlit_app_assignment_13c() -> None:
 
 
 def test_streamlit_app_generates_hrms_text() -> None:
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     _select_workflow(app, "3 · MS / IR / UV").run(timeout=10)
@@ -83,7 +87,7 @@ def test_streamlit_app_generates_hrms_text() -> None:
 
 def test_streamlit_app_history_search(tmp_path) -> None:  # noqa: ANN001
     db_path = str(tmp_path / "history.sqlite")
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     _select_workflow(app, "7 · History Search").run(timeout=10)
@@ -99,7 +103,7 @@ def test_streamlit_app_history_search(tmp_path) -> None:  # noqa: ANN001
 
 def test_streamlit_app_literature_tab(tmp_path) -> None:  # noqa: ANN001
     db_path = str(tmp_path / "history.sqlite")
-    app = AppTest.from_file("app.py")
+    app = AppTest.from_file(APP_PATH)
     app.run(timeout=5)
 
     _select_workflow(app, "7 · History Search").run(timeout=10)

@@ -69,8 +69,20 @@ docs/               产品 / 设计 / 执行计划 / 用户文档
 ## 测试约定
 
 - 测试用 `tmp_path`，**不依赖网络 / 真实 API key**。
+- 测试中的仓库文件入口必须从 `Path(__file__)` 推导，不能假设 pytest 当前工作目录。
+- 写入 JSON / Markdown 的相对路径统一使用 `Path.as_posix()`，保证 Windows / Linux 输出一致。
 - LLM 真实调用走 `@pytest.mark.integration`，默认跳过（见 `pyproject.toml` markers）。
 - 改动输出格式时，同步重新生成 `examples/expected_outputs/`（见该目录 README）并提交。
+
+## 持续集成
+
+`.github/workflows/quality.yml` 在以下情况自动运行：
+
+- push 到 `main` 或 `dev`
+- pull request
+- GitHub Actions 手动触发
+
+测试矩阵覆盖 Ubuntu / Windows 与 Python 3.11 / 3.13，每个组合都运行 pytest 和 Ruff。
 
 ## 提交前检查
 
@@ -78,4 +90,5 @@ docs/               产品 / 设计 / 执行计划 / 用户文档
 uv run ruff check .
 uv run pytest
 ```
+
 两者都过再提交。

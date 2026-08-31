@@ -128,6 +128,8 @@ uv run chemwf backup --id C001 --project-dir examples/project_demo
 uv run pytest
 ```
 
+GitHub Actions 会在 Ubuntu / Windows、Python 3.11 / 3.13 上运行 pytest 与 Ruff。
+
 ## 代码风格
 
 ```bash

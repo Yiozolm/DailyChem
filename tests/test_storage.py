@@ -62,7 +62,7 @@ def test_init_compound_archive_copies_raw_files(tmp_path: Path) -> None:
     )
 
     copied_relatives = {
-        str(path.relative_to(result.compound_dir)) for path in result.copied_raw_files
+        path.relative_to(result.compound_dir).as_posix() for path in result.copied_raw_files
     }
     assert copied_relatives == {"nmr/1H/raw/raw_h.tsv", "ms/raw/hrms.txt"}
 

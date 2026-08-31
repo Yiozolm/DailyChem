@@ -926,7 +926,8 @@ UV-vis (MeOH) λmax 254 nm.
 
 ## TODO
 
-- [x] 增加完整测试集（199 passed, 1 skipped；含黄金输出回归 `tests/test_expected_outputs.py`）
+- [x] 增加完整测试集（226 passed, 1 skipped；含黄金输出回归 `tests/test_expected_outputs.py`）
+- [x] 增加跨平台 CI（Ubuntu / Windows × Python 3.11 / 3.13）
 - [x] 增加错误处理（各模块统一 `XxxError(ValueError)` + CLI 红字提示 + 非零退出；UI try/except 到 `st.error`）
 - [x] 增加日志（`logging_setup.py`，默认 WARNING，`CHEMWF_LOG_LEVEL` 可调）
 - [x] 增加数据备份机制（`chemwf backup` → `backups/<id>_<ts>.zip`，只读源）
@@ -957,6 +958,14 @@ UV-vis (MeOH) λmax 254 nm.
 - `storage.backup_compound_archive` + `chemwf backup`：把 compound 文件夹打包到 `backups/`，只读源、不覆盖原始数据。
 - `examples/expected_outputs/` 黄金输出 + `tests/test_expected_outputs.py` 回归锚点，满足「输出可追溯」。
 - 实测：`uv run ruff check .` 全绿；`uv run pytest` 为 199 passed, 1 skipped。
+
+## 跨平台稳定性补充（2026-08-31）
+
+- 修复 Streamlit `AppTest` 入口的相对路径假设，测试统一使用仓库根目录下的绝对 `app.py` 路径。
+- compound metadata 中的归档相对路径统一序列化为 `/`，避免 Windows 反斜杠污染 JSON / Markdown。
+- 恢复并扩展本地 SQLite 忽略规则，覆盖默认数据库以及 `-wal` / `-shm` / `-journal` sidecar；实验历史数据不进入 Git。
+- 新增 `.github/workflows/quality.yml`，在 push、pull request 和手动触发时运行 Ubuntu / Windows × Python 3.11 / 3.13 测试矩阵及 Ruff。
+- 当前 Windows / Python 3.13.9 实测：`226 passed, 1 skipped`；`ruff check .` 全绿。
 
 ---
 

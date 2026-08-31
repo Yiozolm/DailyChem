@@ -311,6 +311,6 @@ def _ensure_writable(path: Path, overwrite: bool) -> None:
 
 def _relative_to(path: Path, base: Path) -> str:
     try:
-        return str(path.relative_to(base))
+        return path.relative_to(base).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
