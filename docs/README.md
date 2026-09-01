@@ -27,3 +27,4 @@
 ## Completed Exec Plans
 
 - [`exec-plans/completed/phase9_openai_sdk_plan.md`](exec-plans/completed/phase9_openai_sdk_plan.md): Phase 9 OpenAI SDK LLM 辅助层执行计划（已完成）。
+- [`exec-plans/completed/src_functional_refactor_plan.md`](exec-plans/completed/src_functional_refactor_plan.md): `src` 功能化目录、接口分层与 Agent SDK 接入重构计划（已完成）。

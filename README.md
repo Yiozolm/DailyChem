@@ -139,7 +139,7 @@ uv run ruff format .
 
 ## 目录结构
 
-- `src/chem_workflow/` —— 源代码（按 phase 分模块占位）
+- `src/chem_workflow/` —— 按功能组织的源码（core / compounds / spectroscopy / records / archive / history / ai / interfaces）
 - `tests/` —— pytest 测试
 - `data/{raw,processed}/` —— 本地数据，默认不入库
 - `examples/{raw,expected_outputs}/` —— 样例输入与期望输出

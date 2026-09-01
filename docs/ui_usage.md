@@ -124,7 +124,7 @@ Project Export 会调用 Phase 6 的归档逻辑，创建标准 compound 文件�
 ## 页面 6：NMR Assignment Draft
 
 该页面用于生成 `1H` / `13C` NMR 候选 assignment 草稿。选好核种后，它会结合结构特征和
-规则库（`data/rules/nmr_1h_rules.yaml` 或 `nmr_13c_rules.yaml`），为每个 peak 给出
+随 wheel 分发的 1H / 13C assignment 规则库（位于 `chem_workflow.resources`），为每个 peak 给出
 possible candidates、confidence 和 warning。1H 用 MestReNova multiplet 表，13C 用化学位移列表。
 
 结果区顶部会显示**理论信号数一致性**判断：把结构理论上应有的唯一信号数（RDKit 对称性）
@@ -164,8 +164,9 @@ LLM 只消费页面里已经生成的结构化文本，**不会**凭空编造 NM
 - **NMR Assignment 页**：生成草稿后，下方出现 **📝 Summarize for review** 按钮，
   把候选归属整理成可读的复核摘要。
 
-每个 LLM 区块都有一个 **LLM 设置（可选）** 折叠面板，可填写 model、base URL 和 API mode
-（`responses` / `chat-completions`）。API key **不在页面收集**，只从环境变量或项目根目录
+每个 LLM 区块都有一个 **LLM 设置（可选）** 折叠面板，可填写 model、base URL 和 SDK model
+模式（`responses` / `chat-completions`）。两种模式都由 OpenAI Agents SDK 执行，项目不再维护
+自写 API call/protocol。API key **不在页面收集**，只从环境变量或项目根目录
 `.env` 读取（`OPENAI_API_KEY`，DeepSeek 用 `DEEPSEEK_API_KEY`）。
 
 输出始终标记为 **DRAFT**，并展示：

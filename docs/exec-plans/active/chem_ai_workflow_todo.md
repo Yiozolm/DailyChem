@@ -13,6 +13,14 @@
 
 本项目不以“一步到位实现全自动 AI 解谱”为目标，而是优先实现稳定、可解释、可人工确认的半自动工具。
 
+## 当前架构重构计划
+
+- `src` 功能化目录、CLI/Web 接口分层及 Agent SDK 适配边界的实施计划见
+  [`src_functional_refactor_plan.md`](../completed/src_functional_refactor_plan.md)（已完成）。
+- 重构保持确定性化学逻辑、人工确认原则、CLI/UI 用户行为和原始数据保护策略不变。
+- 2026-08-31 实施进度：package resources、功能包、模块化 CLI、薄 Web 启动器及 OpenAI
+  Agents SDK 迁移已落地；自写 `OpenAIResponsesClient` / `LLMClientProtocol` 已删除。
+
 ---
 
 # Phase 0：需求澄清与样例数据收集
