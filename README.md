@@ -31,7 +31,8 @@ run.bat
 ```
 
 默认会在浏览器打开 DailyChem 页面。若没有自动打开，可访问终端提示的本地地址，
-通常是 `http://localhost:8501`。
+项目默认地址是 `http://localhost:8620`。Windows/Hyper-V 可能把 Streamlit 原默认端口
+`8501` 放入系统保留端口范围，因此项目通过 `.streamlit/config.toml` 使用 `8620`。
 
 完整的端到端使用指南（面向化学同学）见 [`docs/user_guide.md`](docs/user_guide.md)，
 常见问题见 [`docs/faq.md`](docs/faq.md)。
@@ -139,7 +140,7 @@ uv run ruff format .
 
 ## 目录结构
 
-- `src/chem_workflow/` —— 源代码（按 phase 分模块占位）
+- `src/chem_workflow/` —— 按功能组织的源码（core / compounds / spectroscopy / records / archive / history / ai / interfaces）
 - `tests/` —— pytest 测试
 - `data/{raw,processed}/` —— 本地数据，默认不入库
 - `examples/{raw,expected_outputs}/` —— 样例输入与期望输出

@@ -19,7 +19,7 @@
 - **Mac / Linux**：终端运行 `bash run.sh`
 - **Windows**：双击 `run.bat`
 
-浏览器会自动打开 DailyChem 页面（通常是 `http://localhost:8501`）。
+浏览器会自动打开 DailyChem 页面（项目默认是 `http://localhost:8620`）。
 左侧是 7 个工作流页面，按编号从上到下就是推荐的使用顺序。
 
 ## 3. 完整工作流（一个化合物从头到尾）

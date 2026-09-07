@@ -15,6 +15,7 @@ if errorlevel 1 (
 
 echo Starting DailyChem web UI...
 echo If the browser does not open automatically, use the local URL shown below.
+echo Project default: http://localhost:8620
 
 uv run streamlit run app.py %*
 
