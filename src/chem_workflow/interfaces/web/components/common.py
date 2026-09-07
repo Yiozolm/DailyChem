@@ -23,10 +23,10 @@ def _downloadable_code(text: str, *, file_name: str, mime: str) -> None:
 
 def _show_compound_metrics(info: dict[object, object]) -> None:
     st.subheader("Molecular information")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Formula", str(info.get("formula", "—")))
-    col2.metric("MW", str(info.get("mol_weight", "—")))
-    col3.metric("Heavy atoms", str(info.get("heavy_atoms", "—")))
+    st.metric("Formula", str(info.get("formula", "—")))
+    mw_col, atoms_col = st.columns(2)
+    mw_col.metric("MW", str(info.get("mol_weight", "—")))
+    atoms_col.metric("Heavy atoms", str(info.get("heavy_atoms", "—")))
     st.text_input("Canonical SMILES", value=str(info.get("smiles", "")), disabled=True)
 
 def _render_svg(svg: str, *, height: int) -> None:
@@ -144,4 +144,3 @@ __all__ = [
     "_show_compound_metrics",
     "_state_text",
 ]
-
