@@ -1,29 +1,33 @@
-"""Phase 9 OpenAI SDK LLM helper tests.
+"""Agent SDK chemistry workflow tests.
 
-These tests intentionally use fake clients or dry-run mode. They must not require network access or
-an OpenAI API key.
+These tests patch the SDK Runner boundary or use dry-run mode. They must not require network access.
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from types import SimpleNamespace
 
-from pydantic import BaseModel
+import pytest
+from agents import OpenAIChatCompletionsModel
 from typer.testing import CliRunner
 
+from chem_workflow.ai.sdk.bootstrap import build_agent_model, build_model_settings
+from chem_workflow.ai.workflows import generation
 from chem_workflow.cli import app
 from chem_workflow.llm import (
     AssignmentSummaryDraft,
     ExperimentRecordDraft,
     LLMWarning,
-    OpenAIResponsesClient,
     OpenAISettings,
+    build_polish_record_input,
     draft_experiment_record,
     find_unsupported_characterization_claims,
+    polish_record,
     postprocess_assignment_summary_draft,
     summarize_assignment,
+    summarize_warnings,
 )
 from chem_workflow.llm_models import LLMInputError, load_dotenv_if_present, resolve_api_key
 from chem_workflow.records import load_reaction_record
@@ -31,53 +35,45 @@ from chem_workflow.records import load_reaction_record
 FIXTURES = Path(__file__).resolve().parents[1] / "examples"
 RECORD_FIXTURE = FIXTURES / "raw" / "experiment_record_example.yaml"
 ASSIGNMENT_FIXTURE = FIXTURES / "processed" / "assignment_draft.md"
+RECORD_MD_FIXTURE = FIXTURES / "processed" / "experiment_record.md"
 
 
-class FakeLLMClient:
-    """Fake structured-output client that records the call and returns schema instances."""
+@pytest.fixture
+def fake_agent_runner(monkeypatch):  # noqa: ANN001
+    """Capture SDK-native Agent/Runner calls without issuing network requests."""
+    calls: list[dict[str, object]] = []
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
 
-    def __init__(self) -> None:
-        self.calls: list[dict[str, Any]] = []
-
-    def parse_structured(
-        self,
-        *,
-        settings: OpenAISettings,
-        instructions: str,
-        input_text: str,
-        output_model: type[BaseModel],
-        metadata: dict[str, str],
-    ) -> tuple[BaseModel, str]:
-        self.calls.append(
+    def run_sync(agent, input_text, **kwargs):  # noqa: ANN001
+        calls.append(
             {
-                "settings": settings,
-                "instructions": instructions,
+                "agent": agent,
                 "input_text": input_text,
-                "output_model": output_model,
-                "metadata": metadata,
+                "run_config": kwargs["run_config"],
             }
         )
-        if output_model is ExperimentRecordDraft:
-            return (
-                ExperimentRecordDraft(
-                    title="Compound C001: ethyl benzoate",
-                    markdown="# Compound C001\n\nDraft text.",
-                    warnings=[],
-                    source_fields_used=["compound_id", "characterization.h1_nmr"],
-                ),
-                "req_fake_record",
+        if agent.output_type is ExperimentRecordDraft:
+            output = ExperimentRecordDraft(
+                title="Compound C001: ethyl benzoate",
+                markdown="# Compound C001\n\nDraft text.",
+                warnings=[],
+                source_fields_used=["compound_id", "characterization.h1_nmr"],
             )
-        if output_model is AssignmentSummaryDraft:
-            return (
-                AssignmentSummaryDraft(
-                    summary_markdown="Candidate-only assignment review summary.",
-                    unresolved_items=["Review aromatic region manually."],
-                    review_checklist=["Check integrations against expected proton count."],
-                    warnings=[LLMWarning(code="manual_review_required", message="Review needed.")],
-                ),
-                "req_fake_assignment",
+            response_id = "resp_fake_record"
+        elif agent.output_type is AssignmentSummaryDraft:
+            output = AssignmentSummaryDraft(
+                summary_markdown="Candidate-only assignment review summary.",
+                unresolved_items=["Review aromatic region manually."],
+                review_checklist=["Check integrations against expected proton count."],
+                warnings=[LLMWarning(code="manual_review_required", message="Review needed.")],
             )
-        raise AssertionError(f"Unexpected output model: {output_model}")
+            response_id = "resp_fake_assignment"
+        else:
+            raise AssertionError(f"Unexpected output model: {agent.output_type}")
+        return SimpleNamespace(final_output=output, last_response_id=response_id)
+
+    monkeypatch.setattr(generation.Runner, "run_sync", staticmethod(run_sync))
+    return calls
 
 
 def test_openai_settings_reads_model_and_base_url(monkeypatch) -> None:  # noqa: ANN001
@@ -165,60 +161,67 @@ def test_dotenv_loader_does_not_override_existing_env(tmp_path: Path, monkeypatc
     assert os.environ["OPENAI_API_KEY"] == "sk-existing"
 
 
-def test_draft_experiment_record_uses_fake_client() -> None:
+def test_draft_experiment_record_uses_agent_runner(fake_agent_runner) -> None:  # noqa: ANN001
     record = load_reaction_record(RECORD_FIXTURE)
-    fake = FakeLLMClient()
     settings = OpenAISettings(model="gpt-test", base_url="https://proxy.example/v1")
 
-    result = draft_experiment_record(record, settings=settings, client=fake)
+    result = draft_experiment_record(record, settings=settings)
 
     assert result.output.status == "draft"
     assert result.output.title == "Compound C001: ethyl benzoate"
-    assert result.metadata.request_id == "req_fake_record"
-    assert fake.calls[0]["settings"].base_url == "https://proxy.example/v1"
-    assert fake.calls[0]["metadata"]["task"] == "experiment_record_en"
-    assert "baseline_markdown" in fake.calls[0]["input_text"]
+    assert result.metadata.request_id == "resp_fake_record"
+    assert fake_agent_runner[0]["agent"].name == "experiment_record_en"
+    assert fake_agent_runner[0]["run_config"].trace_metadata["task"] == "experiment_record_en"
+    assert "baseline_markdown" in fake_agent_runner[0]["input_text"]
 
 
-def test_summarize_assignment_uses_fake_client() -> None:
-    fake = FakeLLMClient()
+def test_summarize_assignment_uses_agent_runner(fake_agent_runner) -> None:  # noqa: ANN001
     settings = OpenAISettings(model="gpt-test")
     markdown = ASSIGNMENT_FIXTURE.read_text(encoding="utf-8")
 
-    result = summarize_assignment(markdown, settings=settings, client=fake)
+    result = summarize_assignment(markdown, settings=settings)
 
     assert result.output.status == "draft"
     assert result.output.unresolved_items
-    assert result.metadata.request_id == "req_fake_assignment"
-    assert fake.calls[0]["metadata"]["task"] == "assignment_summary"
+    assert result.metadata.request_id == "resp_fake_assignment"
+    assert fake_agent_runner[0]["agent"].name == "assignment_summary"
 
 
-def test_chat_completions_mode_parses_fake_response() -> None:
-    class FakeMessage:
-        content = '{"status": "draft", "summary_markdown": "Candidate summary."}'
+def test_summarize_warnings_uses_agent_runner(fake_agent_runner) -> None:  # noqa: ANN001
+    settings = OpenAISettings(model="gpt-test")
+    markdown = ASSIGNMENT_FIXTURE.read_text(encoding="utf-8")
 
-    class FakeChoice:
-        message = FakeMessage()
+    result = summarize_warnings(markdown, settings=settings)
 
-    class FakeResponse:
-        id = "chatcmpl_fake"
-        choices = [FakeChoice()]
+    assert result.output.status == "draft"
+    assert result.metadata.request_id == "resp_fake_assignment"
+    assert fake_agent_runner[0]["agent"].name == "warning_summary"
+    assert "assignment_draft_markdown" in fake_agent_runner[0]["input_text"]
 
-    class FakeCompletions:
-        def create(self, **kwargs):  # noqa: ANN001
-            self.kwargs = kwargs
-            return FakeResponse()
 
-    class FakeChat:
-        def __init__(self) -> None:
-            self.completions = FakeCompletions()
+def test_polish_record_uses_agent_runner(fake_agent_runner) -> None:  # noqa: ANN001
+    settings = OpenAISettings(model="gpt-test")
+    markdown = RECORD_MD_FIXTURE.read_text(encoding="utf-8")
 
-    class FakeSDKClient:
-        def __init__(self) -> None:
-            self.chat = FakeChat()
+    result = polish_record(markdown, settings=settings, language="en")
 
-    client = object.__new__(OpenAIResponsesClient)
-    client._client = FakeSDKClient()  # noqa: SLF001
+    assert result.output.status == "draft"
+    assert result.metadata.request_id == "resp_fake_record"
+    assert fake_agent_runner[0]["agent"].name == "polish_record"
+    assert "record_markdown" in fake_agent_runner[0]["input_text"]
+
+
+def test_build_polish_record_input_rejects_empty() -> None:
+    try:
+        build_polish_record_input("   \n")
+    except LLMInputError as e:
+        assert "实验记录" in str(e)
+    else:
+        raise AssertionError("Expected LLMInputError")
+
+
+def test_chat_completions_mode_uses_agents_sdk_model(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     settings = OpenAISettings(
         model="gpt-test",
         api_mode="chat-completions",
@@ -226,20 +229,13 @@ def test_chat_completions_mode_parses_fake_response() -> None:
         enable_thinking=True,
     )
 
-    parsed, request_id = client.parse_structured(
-        settings=settings,
-        instructions="system",
-        input_text="input",
-        output_model=AssignmentSummaryDraft,
-        metadata={"task": "assignment_summary"},
-    )
+    model = build_agent_model(settings)
+    model_settings = build_model_settings(settings)
 
-    assert parsed.status == "draft"
-    assert request_id == "chatcmpl_fake"
-    kwargs = client._client.chat.completions.kwargs  # noqa: SLF001
-    assert kwargs["stream"] is False
-    assert kwargs["reasoning_effort"] == "high"
-    assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert isinstance(model, OpenAIChatCompletionsModel)
+    assert model_settings.reasoning is not None
+    assert model_settings.reasoning.effort == "high"
+    assert model_settings.extra_body == {"thinking": {"type": "enabled"}}
 
 
 def test_find_unsupported_characterization_claims_flags_new_numbers() -> None:
@@ -299,6 +295,33 @@ def test_cli_llm_summarize_assignment_dry_run_writes_file(
     assert result.exit_code == 0
     assert result.output == f"已写入 {out}\n"
     assert "assignment_summary" in out.read_text(encoding="utf-8")
+
+
+def test_cli_llm_summarize_warnings_dry_run(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app, ["llm", "summarize-warnings", str(ASSIGNMENT_FIXTURE), "--dry-run-prompt"]
+    )
+
+    assert result.exit_code == 0
+    assert "## Instructions" in result.output
+    assert "warning_summary" in result.output
+
+
+def test_cli_llm_polish_record_dry_run(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    runner = CliRunner()
+
+    result = runner.invoke(
+        app, ["llm", "polish-record", str(RECORD_MD_FIXTURE), "--dry-run-prompt"]
+    )
+
+    assert result.exit_code == 0
+    assert "## Instructions" in result.output
+    assert "polish_record" in result.output
+    assert "record_markdown" in result.output
 
 
 def test_cli_llm_draft_record_without_api_key_is_clear(

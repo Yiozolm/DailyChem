@@ -1,0 +1,49 @@
+rules:
+  - id: carbonyl_C
+    label: carbonyl / carboxyl C
+    shift_range: [155.0, 220.0]
+    description: carbonyl or carboxyl carbon (C=O, ester, amide, acid, ketone, aldehyde)
+    required_features: [carbonyl_C]
+
+  - id: aromatic_C
+    label: aromatic C
+    shift_range: [108.0, 152.0]
+    description: aromatic ring carbon
+    required_features: [aromatic_C]
+
+  - id: nitrile_C
+    label: nitrile C
+    shift_range: [115.0, 120.0]
+    description: nitrile carbon (C≡N)
+    required_features: [nitrile_C]
+
+  - id: alkene_C
+    label: alkene C
+    shift_range: [100.0, 150.0]
+    description: olefinic carbon (non-aromatic C=C)
+    required_features: [alkene_C]
+
+  - id: alkyne_C
+    label: alkyne C
+    shift_range: [65.0, 95.0]
+    description: alkyne carbon (C≡C)
+    required_features: [alkyne_C]
+
+  - id: O_C
+    label: O-bound C (OCH3 / OCH2 / OCH)
+    shift_range: [48.0, 90.0]
+    description: sp3 carbon bonded to oxygen
+    required_features: [O_C]
+
+  - id: N_C
+    label: N-bound C
+    shift_range: [30.0, 60.0]
+    description: sp3 carbon bonded to nitrogen
+    required_features: [N_C]
+
+  - id: aliphatic_C
+    label: aliphatic C
+    shift_range: [5.0, 50.0]
+    description: aliphatic sp3 carbon
+    required_features: [aliphatic_C]
+    warn_if_missing: false

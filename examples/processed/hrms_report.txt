@@ -1,0 +1,1 @@
+HRMS (ESI) m/z calculated for C9H10O2Na [M + Na]+ 173.0573, found 173.0570 (ppm error -1.7).

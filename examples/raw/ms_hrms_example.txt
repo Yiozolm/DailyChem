@@ -1,0 +1,11 @@
+# HRMS 输入示例（ethyl benzoate, [M+Na]+）
+#
+# 自动计算（从结构）：
+#   chemwf ms hrms --smiles "CCOC(=O)c1ccccc1" --adduct "[M+Na]+" --found 173.0570
+#
+# 手动模式（直接给 calc m/z）：
+#   chemwf ms hrms --ion-formula C9H10O2Na --calc 173.0573 --found 173.0570
+smiles: CCOC(=O)c1ccccc1
+adduct: [M+Na]+
+ionization: ESI
+found_mz: 173.0570

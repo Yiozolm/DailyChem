@@ -160,11 +160,10 @@ def test_format_empty_spectrum_raises() -> None:
         format_nmr_spectrum(spectrum)
 
 
-def test_format_unsupported_nucleus_raises() -> None:
+def test_format_19f_now_supported() -> None:
     spectrum = NMRSpectrum(nucleus="19F", peaks=[NMRPeak(shift_ppm=-63.5)])
 
-    with pytest.raises(NMRFormatError, match="not implemented"):
-        format_nmr_spectrum(spectrum)
+    assert format_nmr_spectrum(spectrum) == "19F NMR δ -63.5."
 
 
 def test_cli_nmr_format_outputs_text() -> None:
@@ -217,3 +216,35 @@ def test_cli_nmr_format_writes_output_file(tmp_path: Path) -> None:
         "8.56 (s, 2H), 7.51 (s, 2H), 5.17 (s, 2H), "
         "3.11 (s, 9H), 2.72 (s, 2H), 1.24 (s, 2H).\n"
     )
+
+
+def test_format_19f_shift_list() -> None:
+    spectrum = NMRSpectrum(
+        nucleus="19F",
+        frequency_mhz=376,
+        solvent="CDCl3",
+        peaks=[NMRPeak(shift_ppm=-62.5), NMRPeak(shift_ppm=-113.8)],
+    )
+
+    assert format_nmr_spectrum(spectrum) == "19F NMR (376 MHz, CDCl3) δ -62.5, -113.8."
+
+
+def test_format_31p_shift_list() -> None:
+    spectrum = NMRSpectrum(
+        nucleus="31P",
+        frequency_mhz=162,
+        solvent="CDCl3",
+        peaks=[NMRPeak(shift_ppm=23.4)],
+    )
+
+    assert format_nmr_spectrum(spectrum) == "31P NMR (162 MHz, CDCl3) δ 23.4."
+
+
+def test_format_19f_sorts_descending_by_default() -> None:
+    spectrum = NMRSpectrum(
+        nucleus="19F",
+        peaks=[NMRPeak(shift_ppm=-113.8), NMRPeak(shift_ppm=-62.5)],
+    )
+
+    # Sorted high-to-low: -62.5 before -113.8.
+    assert "δ -62.5, -113.8." in format_nmr_spectrum(spectrum)

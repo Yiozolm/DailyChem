@@ -31,3 +31,10 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+
+# Local history databases (Phase 11; runtime/user data, never commit)
+data/chem_workflow.sqlite*
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
