@@ -1,147 +1,67 @@
-# DailyChem · chem-ai-workflow
+# DailyChem
 
-化学工作流自动化工具：结构、谱图、实验记录的半自动处理。
+DailyChem 是面向日常化学工作流的本地辅助工具，用于整理化合物结构、谱学数据、实验记录和
+项目归档。所有 assignment 与 AI 输出都保留人工复核要求，不会自动覆盖原始实验数据。
 
-详细规划见 [`docs/exec-plans/active/chem_ai_workflow_todo.md`](docs/exec-plans/active/chem_ai_workflow_todo.md)。
+## 主要功能
+
+- 读取 SMILES、MOL、SDF、CDX 和 CDXML，并生成结构信息与带原子编号的图片。
+- 解析 MestReNova NMR multiplet table，生成 publication-style NMR 文本。
+- 计算和格式化 HRMS，并整理 IR、UV-vis 表征文本。
+- 根据 YAML/JSON 生成中英文实验记录草稿。
+- 生成 1H/13C NMR candidate assignment 与一致性警告。
+- 创建标准 compound 归档、备份和本地 SQLite 历史检索。
+- 使用 OpenAI Agents SDK 生成带 warnings 的可复核草稿。
 
 ## 安装
 
-依赖 [uv](https://docs.astral.sh/uv/) 和 Python ≥ 3.11。
+需要 Python 3.11 或更高版本，以及 [uv](https://docs.astral.sh/uv/)。
 
 ```bash
 uv sync
 ```
 
-## 运行
+## 启动图形界面
 
-### 启动图形界面（推荐给非程序员用户）
-
-Mac / Linux：
+Windows 用户可双击 `run.bat`，Mac/Linux 用户运行：
 
 ```bash
 bash run.sh
 ```
 
-Windows：
-
-双击 `run.bat`，或在终端运行：
-
-```bat
-run.bat
-```
-
-默认会在浏览器打开 DailyChem 页面。若没有自动打开，可访问终端提示的本地地址，
-项目默认地址是 `http://localhost:8620`。Windows/Hyper-V 可能把 Streamlit 原默认端口
-`8501` 放入系统保留端口范围，因此项目通过 `.streamlit/config.toml` 使用 `8620`。
-
-完整的端到端使用指南（面向化学同学）见 [`docs/user_guide.md`](docs/user_guide.md)，
-常见问题见 [`docs/faq.md`](docs/faq.md)。
-
-### 命令行工具（开发者）
-
-```bash
-uv run chemwf --help
-uv run chemwf version
-```
-
-### NMR peak list 格式化
-
-第一版接收 MestReNova `View → Tables → Multiplets` 复制出来的 tab-separated 文本：
-
-```bash
-uv run chemwf nmr parse examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
-uv run chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
-```
-
-### 实验记录生成
-
-```bash
-uv run chemwf records generate examples/raw/experiment_record_example.yaml
-uv run chemwf records generate examples/raw/experiment_record_example.yaml --language zh --out examples/processed/experiment_record.md
-```
-
-### Compound 本地归档
-
-```bash
-uv run chemwf init-compound --id C001 --project-dir examples/project_demo --smiles "CCOC(=O)c1ccccc1"
-```
-
-### 本地 Web UI（开发者原始命令）
+也可以直接运行：
 
 ```bash
 uv run streamlit run app.py
 ```
 
-更详细的界面使用说明见 [`docs/ui_usage.md`](docs/ui_usage.md)。
+浏览器通常会自动打开；项目默认地址是 `http://localhost:8620`。
 
-### 1H NMR assignment 草稿
+## 命令行
 
-```bash
-uv run chemwf nmr assign examples/raw/nmr_multiplet_table_clean_example.tsv \
-  --smiles "CCOC(=O)c1ccccc1" \
-  --frequency 400 \
-  --solvent CDCl3
-```
-
-该命令只生成候选归属和风险提示，不会声称自动 assignment 一定正确。
-
-### 信号数一致性检查（谱对不对得上结构）
+查看全部命令：
 
 ```bash
-uv run chemwf nmr check --nucleus 13C --smiles "CCOC(=O)c1ccccc1" --inline "166.7, 132.8, 130.5, 129.6, 128.4, 60.9, 14.4"
+uv run chemwf --help
 ```
 
-### MS / IR / UV 表征文本
+常用示例：
 
 ```bash
-uv run chemwf ms hrms --smiles "CCOC(=O)c1ccccc1" --adduct "[M+Na]+" --found 173.0570
-uv run chemwf ir format examples/raw/ir_peaks_example.txt
-uv run chemwf uv format examples/raw/uv_peaks_example.txt --solvent MeOH
+uv run chemwf nmr format examples/raw/nmr_multiplet_table_clean_example.tsv --frequency 400 --solvent CDCl3
+uv run chemwf records generate examples/raw/experiment_record_example.yaml --language zh
+uv run chemwf ms hrms --smiles "CCOC(=O)c1ccccc1" --adduct "[M+Na]+"
 ```
 
-### 本地历史检索
+## 使用文档
 
-```bash
-uv run chemwf db add --id C001 --smiles "CCOC(=O)c1ccccc1"
-uv run chemwf db search --smiles "c1ccccc1" --substructure
-uv run chemwf db search --smiles "CCOC(=O)c1ccccc1" --similarity --threshold 0.5
-```
+- [完整使用指南](docs/user_guide.md)
+- [图形界面逐页说明](docs/ui_usage.md)
+- [常见问题](docs/faq.md)
 
-### 文献参考与对照
+## 数据安全
 
-```bash
-uv run chemwf lit add --doi 10.1021/xxxxx --title "..." --smiles "CCOC(=O)c1ccccc1" --c13 "13C NMR ..."
-uv run chemwf lit search --smiles "c1ccccc1" --substructure
-uv run chemwf lit compare --smiles "CCOC(=O)c1ccccc1"
-```
-
-### 配置与备份
-
-```bash
-uv run chemwf config init          # 生成 .chemwf.toml（图形界面默认值来源）
-uv run chemwf config show
-uv run chemwf backup --id C001 --project-dir examples/project_demo
-```
-
-## 测试
-
-```bash
-uv run pytest
-```
-
-GitHub Actions 会在 Ubuntu / Windows、Python 3.11 / 3.13 上运行 pytest 与 Ruff。
-
-## 代码风格
-
-```bash
-uv run ruff check .
-uv run ruff format .
-```
-
-## 目录结构
-
-- `src/chem_workflow/` —— 按功能组织的源码（core / compounds / spectroscopy / records / archive / history / ai / interfaces）
-- `tests/` —— pytest 测试
-- `data/{raw,processed}/` —— 本地数据，默认不入库
-- `examples/{raw,expected_outputs}/` —— 样例输入与期望输出
-- `docs/` —— 项目文档（产品、设计、执行计划等）
+- 默认不覆盖已有 compound 归档。
+- 备份与归档只读取源文件，并把结果写到独立位置。
+- LLM/Agent 输出始终是 draft，必须人工复核。
+- API key 只从环境变量或本地 `.env` 读取，不写入输出、配置或日志。
