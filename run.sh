@@ -12,5 +12,6 @@ fi
 
 echo "正在启动 DailyChem 图形界面..."
 echo "如果浏览器没有自动打开，请访问终端里显示的本地地址。"
+echo "项目默认地址：http://localhost:8620"
 
 uv run streamlit run app.py "$@"

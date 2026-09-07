@@ -30,7 +30,7 @@ uv run streamlit run app.py
 ```
 
 默认会在浏览器打开 Streamlit 页面。若没有自动打开，可访问终端提示的本地地址，
-通常是 `http://localhost:8501`。
+项目默认是 `http://localhost:8620`。如果浏览器没有自动打开，请手动访问该地址。
 
 ## 页面 1：Compound Setup
 

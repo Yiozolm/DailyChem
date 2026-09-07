@@ -1,0 +1,3 @@
+[server]
+# Windows/Hyper-V may reserve the default Streamlit port 8501 in a dynamic exclusion range.
+port = 8620

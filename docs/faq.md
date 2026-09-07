@@ -7,7 +7,16 @@
 首次 `uv sync` 会下载 RDKit 等较大依赖，需要联网，耐心等待。
 
 **Q: 双击 `run.bat` / `bash run.sh` 后浏览器没自动打开？**
-看终端输出的本地地址，手动在浏览器打开，通常是 `http://localhost:8501`。
+看终端输出的本地地址，手动在浏览器打开。项目默认是 `http://localhost:8620`。
+
+**Q: 终端提示 `Port 8501 is not available`？**
+
+Windows/Hyper-V 有时会把 Streamlit 原默认端口 `8501` 放进系统保留端口范围。项目已通过
+`.streamlit/config.toml` 改用 `8620`。如果 `8620` 也被其他程序占用，可临时运行：
+
+```bash
+uv run streamlit run app.py --server.port 8701
+```
 
 ## 结构输入
 
