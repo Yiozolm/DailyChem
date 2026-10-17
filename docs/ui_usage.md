@@ -81,6 +81,13 @@ uv run streamlit run app.py
 
 ## 页面 4：Experiment Record Generator
 
+页面顶部的 **📷 从照片生成实验记录** 支持两种输入：浏览器直接拍照，或上传一张/多张 PNG、JPG、WEBP
+照片。点击 **识别照片** 后，DailyChem 会按需启动本机 WSL2 中的 GLM-OCR 服务。首次启动模型可能需要几分钟。
+
+OCR 结果会显示字段值、照片原文片段和 `needs_review` 状态。逐字段核对后点击 **填入实验记录表单**，再像手动输入一样修改字段并生成记录。OCR 不会自动补全照片中没有的数字或单位。
+
+生成结果可以下载 Markdown 和 YAML。项目归档时可选保存原始图片、`raw_ocr.json` 和 `structured_draft.json`，用于后续追溯。
+
 填写反应条件、workup、purification、yield 和 characterization 后，点击
 **生成 Markdown**。
 

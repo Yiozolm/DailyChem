@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import cast
@@ -52,6 +53,11 @@ def _project_export_page() -> None:
             value=bool(st.session_state.get("record_markdown")),
             disabled=not bool(st.session_state.get("record_markdown")),
         )
+        include_ocr = st.checkbox(
+            "保留 OCR 原图、原始响应和结构化草稿",
+            value=bool(st.session_state.get("ocr_draft")),
+            disabled=not bool(st.session_state.get("ocr_draft")),
+        )
 
         if st.button("初始化并导出项目", type="primary", width="stretch"):
             _handle_project_export(
@@ -62,6 +68,7 @@ def _project_export_page() -> None:
                 smiles=smiles,
                 uploaded=uploaded,
                 include_record=include_record,
+                include_ocr=include_ocr,
             )
 
     with right:
@@ -76,6 +83,7 @@ def _handle_project_export(
     smiles: str,
     uploaded: object,
     include_record: bool,
+    include_ocr: bool,
 ) -> None:
     try:
         with TemporaryDirectory() as tmp:
@@ -96,6 +104,7 @@ def _handle_project_export(
                 tmp_dir=Path(tmp),
                 compound_id=compound_id,
                 include_record=include_record,
+                include_ocr=include_ocr,
             )
             result = init_compound_archive(
                 compound_id=compound_id,
@@ -123,13 +132,49 @@ def _record_raw_groups(
     tmp_dir: Path,
     compound_id: str,
     include_record: bool,
+    include_ocr: bool,
 ) -> tuple[RawFileGroup, ...]:
-    record_markdown = st.session_state.get("record_markdown")
-    if not include_record or not isinstance(record_markdown, str) or not record_markdown:
-        return ()
-    record_path = tmp_dir / f"{compound_id.strip() or 'compound'}_experiment_record.md"
-    record_path.write_text(record_markdown + "\n", encoding="utf-8")
-    return (RawFileGroup("record", Path("records"), (record_path,)),)
+    groups: list[RawFileGroup] = []
+    if include_record:
+        record_markdown = st.session_state.get("record_markdown")
+        if isinstance(record_markdown, str) and record_markdown:
+            record_path = tmp_dir / f"{compound_id.strip() or 'compound'}_experiment_record.md"
+            record_path.write_text(record_markdown + "\n", encoding="utf-8")
+            groups.append(RawFileGroup("record", Path("records"), (record_path,)))
+        record_yaml = st.session_state.get("record_yaml")
+        if isinstance(record_yaml, str) and record_yaml:
+            yaml_path = tmp_dir / f"{compound_id.strip() or 'compound'}_experiment_record.yaml"
+            yaml_path.write_text(record_yaml, encoding="utf-8")
+            groups.append(RawFileGroup("record-yaml", Path("records"), (yaml_path,)))
+    if include_ocr:
+        image_paths: list[Path] = []
+        image_items = st.session_state.get("ocr_images")
+        if isinstance(image_items, list):
+            for index, item in enumerate(image_items, start=1):
+                if not isinstance(item, dict) or not isinstance(item.get("data"), bytes):
+                    continue
+                name = Path(str(item.get("name") or f"page_{index}.jpg")).name
+                image_path = tmp_dir / f"ocr_{index:02d}_{name}"
+                image_path.write_bytes(item["data"])
+                image_paths.append(image_path)
+        if image_paths:
+            groups.append(RawFileGroup("ocr-images", Path("ocr/images"), tuple(image_paths)))
+
+        raw_response = st.session_state.get("ocr_raw_response")
+        if isinstance(raw_response, dict):
+            raw_path = tmp_dir / "raw_ocr.json"
+            raw_path.write_text(
+                json.dumps(raw_response, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            groups.append(RawFileGroup("ocr-raw", Path("ocr"), (raw_path,)))
+        draft = st.session_state.get("ocr_draft")
+        if isinstance(draft, dict):
+            draft_path = tmp_dir / "structured_draft.json"
+            draft_path.write_text(
+                json.dumps(draft, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+            groups.append(RawFileGroup("ocr-draft", Path("ocr"), (draft_path,)))
+    return tuple(groups)
 
 def _show_export_result() -> None:
     payload = st.session_state.get("export_result")

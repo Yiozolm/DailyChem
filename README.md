@@ -12,6 +12,7 @@ DailyChem 是面向日常化学工作流的本地辅助工具，用于整理化�
 - 生成 1H/13C NMR candidate assignment 与一致性警告。
 - 创建标准 compound 归档、备份和本地 SQLite 历史检索。
 - 使用 OpenAI Agents SDK 生成带 warnings 的可复核草稿。
+- 拍摄或上传手写实验记录照片，通过本地 WSL2 + vLLM + GLM-OCR 生成可校对的实验记录草稿。
 
 ## 安装
 
@@ -20,6 +21,10 @@ DailyChem 是面向日常化学工作流的本地辅助工具，用于整理化�
 ```bash
 uv sync
 ```
+
+首次使用照片 OCR 时，Windows 用户需要以管理员身份运行
+[`deploy/windows/install_ocr.ps1`](deploy/windows/install_ocr.ps1)。安装器会引导完成 WSL2、Ubuntu、
+vLLM 和 GLM-OCR 配置；首次启用 WSL2 可能需要重启。照片和识别结果始终留在本机。
 
 ## 启动图形界面
 

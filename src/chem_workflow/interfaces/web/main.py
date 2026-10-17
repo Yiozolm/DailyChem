@@ -55,7 +55,7 @@ def main() -> None:
 
 def _render_sidebar() -> None:
     st.sidebar.title("DailyChem")
-    st.sidebar.caption("结构 → NMR → 实验记录 → 项目归档")
+    st.sidebar.caption("结构 → NMR → 实验记录（可拍照 OCR）→ 项目归档")
     st.sidebar.divider()
     st.sidebar.markdown(
         """
@@ -65,6 +65,7 @@ def _render_sidebar() -> None:
         - NMR：MestReNova multiplet table
         - MS / IR / UV：HRMS m/z、IR / UV-vis 文本
         - 记录：Markdown 初稿
+        - OCR：本地 WSL2 GLM-OCR 草稿
         - 导出：标准 compound 文件夹 + zip
         - Assignment：候选归属 + 人工确认
         - 历史检索：子结构 / 相似度（本地 SQLite）

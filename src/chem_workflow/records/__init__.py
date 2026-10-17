@@ -1,6 +1,10 @@
 """Experiment record models, input loading, and Markdown rendering."""
 
-from chem_workflow.records.io import load_reaction_record, write_experiment_record
+from chem_workflow.records.io import (
+    load_reaction_record,
+    render_record_yaml,
+    write_experiment_record,
+)
 from chem_workflow.records.models import (
     Characterization,
     Language,
@@ -21,6 +25,7 @@ __all__ = [
     "RecordInputError",
     "YieldInfo",
     "load_reaction_record",
+    "render_record_yaml",
     "render_experiment_record",
     "write_experiment_record",
 ]

@@ -40,6 +40,12 @@ def write_experiment_record(
     return path
 
 
+def render_record_yaml(record: ReactionRecord) -> str:
+    """Serialize a validated record for editing or archival."""
+    payload = record.model_dump(mode="json", by_alias=True, exclude_none=True)
+    return yaml.safe_dump(payload, allow_unicode=True, sort_keys=False)
+
+
 def _load_record_data(path: Path) -> dict[str, object]:
     suffix = path.suffix.lower()
     text = path.read_text(encoding="utf-8")
@@ -57,4 +63,4 @@ def _load_record_data(path: Path) -> dict[str, object]:
     return raw
 
 
-__all__ = ["load_reaction_record", "write_experiment_record"]
+__all__ = ["load_reaction_record", "render_record_yaml", "write_experiment_record"]

@@ -11,6 +11,7 @@ from chem_workflow.interfaces.cli.archive import archive_app
 from chem_workflow.interfaces.cli.config import config_app
 from chem_workflow.interfaces.cli.history import db_app, lit_app
 from chem_workflow.interfaces.cli.nmr import nmr_app
+from chem_workflow.interfaces.cli.ocr import ocr_app
 from chem_workflow.interfaces.cli.records import records_app
 from chem_workflow.interfaces.cli.spectra import ir_app, ms_app, uv_app
 from chem_workflow.interfaces.cli.structure import structure_app
@@ -30,6 +31,7 @@ def version() -> None:
 app.add_typer(archive_app)
 app.add_typer(structure_app, name="structure")
 app.add_typer(nmr_app, name="nmr")
+app.add_typer(ocr_app, name="ocr")
 app.add_typer(records_app, name="records")
 app.add_typer(llm_app, name="llm")
 app.add_typer(ms_app, name="ms")

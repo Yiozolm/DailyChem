@@ -12,20 +12,30 @@ from chem_workflow.ai.schemas import (
     LLMServiceError,
 )
 from chem_workflow.ai.workflows import polish_record
+from chem_workflow.core.config import ConfigError, load_config
 from chem_workflow.interfaces.web.components.common import (
     _downloadable_code,
     _page_header,
     _safe_state_file_stem,
-    _state_text,
 )
 from chem_workflow.interfaces.web.components.llm import (
     _llm_settings_expander,
     _render_llm_draft,
 )
 from chem_workflow.interfaces.web.components.support import (
+    UploadedFileLike,
     optional_text,
     parse_material_lines,
     split_nonempty_lines,
+)
+from chem_workflow.ocr import (
+    OCRImage,
+    OCRRecordDraft,
+    OCRRuntimeError,
+    OCRRuntimeManager,
+    OCRService,
+    OCRServiceError,
+    infer_mime_type,
 )
 from chem_workflow.records import (
     Characterization,
@@ -35,67 +45,69 @@ from chem_workflow.records import (
     RecordInputError,
     YieldInfo,
     render_experiment_record,
+    render_record_yaml,
 )
 
 
 def _experiment_record_page() -> None:
     _page_header(
         "Experiment Record Generator",
-        "填写反应条件、后处理、纯化和表征数据，生成 Markdown 实验记录初稿。",
+        "可手动填写，或先拍照识别实验记录，再逐字段校对并生成 Markdown / YAML。",
     )
 
+    _render_ocr_section()
+
     with st.form("record_form"):
-        compound_id = st.text_input("Compound ID", value=_state_text("compound_id", "C001"))
-        product_name = st.text_input("Product name", value="ethyl benzoate")
-        smiles = st.text_input("SMILES", value=_state_text("compound_smiles"))
+        compound_id = _text_input("Compound ID", "compound_id", "C001")
+        product_name = _text_input("Product name", "product_name", "ethyl benzoate")
+        smiles = _text_input("SMILES", "compound_smiles", "")
 
         col_a, col_b = st.columns(2)
         with col_a:
-            starting_materials = st.text_area(
+            starting_materials = _text_area(
                 "Starting materials（每行：name | amount）",
-                value="benzoic acid | 1.0 mmol\nethanol | 5 mL",
+                "starting_materials",
+                "benzoic acid | 1.0 mmol\nethanol | 5 mL",
                 height=110,
             )
-            solvent = st.text_input("Solvent", value="ethanol")
-            temperature = st.text_input("Temperature", value="room temperature")
-            workup = st.text_area("Workup", value="quenched with water and extracted with EtOAc")
+            solvent = _text_input("Solvent", "solvent", "ethanol")
+            temperature = _text_input("Temperature", "temperature", "room temperature")
+            workup = _text_area(
+                "Workup", "workup", "quenched with water and extracted with EtOAc"
+            )
         with col_b:
-            reagents = st.text_area(
+            reagents = _text_area(
                 "Reagents（每行：name | amount）",
-                value="conc. H2SO4 | catalytic",
+                "reagents",
+                "conc. H2SO4 | catalytic",
                 height=110,
             )
-            reaction_time = st.text_input("Time", value="12 h")
-            purification = st.text_input("Purification", value="column chromatography")
-            appearance = st.text_input("Appearance", value="colorless oil")
+            reaction_time = _text_input("Time", "reaction_time", "12 h")
+            purification = _text_input("Purification", "purification", "column chromatography")
+            appearance = _text_input("Appearance", "appearance", "colorless oil")
 
         col_y1, col_y2, col_lang = st.columns([1, 1, 1])
         with col_y1:
-            yield_mass = st.text_input("Yield mass", value="95 mg")
+            yield_mass = _text_input("Yield mass", "yield_mass", "95 mg")
         with col_y2:
-            yield_percent = st.text_input("Yield percent", value="63%")
+            yield_percent = _text_input("Yield percent", "yield_percent", "63%")
         with col_lang:
-            language = cast(Language, st.selectbox("Language", ("en", "zh")))
+            _ensure_state("record_language", "en")
+            language = cast(Language, st.selectbox("Language", ("en", "zh"), key="record_language"))
 
         st.subheader("Characterization")
-        h1_nmr = st.text_area(
-            "1H NMR",
-            value=_state_text("nmr_1h_text"),
-            height=100,
-        )
-        c13_nmr = st.text_area(
-            "13C NMR",
-            value=_state_text("nmr_13c_text"),
-            height=100,
-        )
+        h1_nmr = _text_area("1H NMR", "nmr_1h_text", "", height=100)
+        c13_nmr = _text_area("13C NMR", "nmr_13c_text", "", height=100)
         col_c1, col_c2 = st.columns(2)
         with col_c1:
-            hrms = st.text_input("HRMS", value=_state_text("hrms_text"))
-            ms = st.text_input("MS", value="")
+            hrms = _text_input("HRMS", "hrms_text", "")
+            ms = _text_input("MS", "ms_text", "")
         with col_c2:
-            ir = st.text_input("IR", value=_state_text("ir_text"))
-            uv = st.text_input("UV-vis", value=_state_text("uv_text"))
-        other_characterization = st.text_area("Other characterization（每行一条）", value="")
+            ir = _text_input("IR", "ir_text", "")
+            uv = _text_input("UV-vis", "uv_text", "")
+        other_characterization = _text_area(
+            "Other characterization（每行一条）", "other_characterization", ""
+        )
 
         submitted = st.form_submit_button("生成 Markdown", type="primary")
 
@@ -134,7 +146,155 @@ def _experiment_record_page() -> None:
             file_name=f"{_safe_state_file_stem('compound_id')}_experiment_record.md",
             mime="text/markdown",
         )
+        yaml_text = st.session_state.get("record_yaml")
+        if isinstance(yaml_text, str) and yaml_text:
+            st.download_button(
+                "下载实验记录 YAML",
+                data=yaml_text,
+                file_name=f"{_safe_state_file_stem('compound_id')}_experiment_record.yaml",
+                mime="application/yaml",
+                width="stretch",
+            )
         _render_record_polish_section(markdown, language)
+
+
+def _ensure_state(key: str, default: str) -> None:
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+def _text_input(label: str, key: str, default: str) -> str:
+    _ensure_state(key, default)
+    return st.text_input(label, key=key)
+
+
+def _text_area(label: str, key: str, default: str, **kwargs: object) -> str:
+    _ensure_state(key, default)
+    return st.text_area(label, key=key, **kwargs)
+
+
+def _render_ocr_section() -> None:
+    with st.expander("📷 从照片生成实验记录（本地 GLM-OCR）", expanded=True):
+        st.caption(
+            "照片只发送到本机 WSL2 内的 GLM-OCR。识别结果是草稿，必须逐字段核对后再生成记录。"
+        )
+        camera = st.camera_input("拍摄实验记录", key="ocr_camera")
+        uploads = st.file_uploader(
+            "或上传一张/多张实验记录照片",
+            type=["png", "jpg", "jpeg", "webp"],
+            accept_multiple_files=True,
+            key="ocr_uploads",
+        )
+        if st.button("识别照片", key="ocr_run", type="primary", width="stretch"):
+            _handle_ocr_request(camera, uploads)
+
+        draft_payload = st.session_state.get("ocr_draft")
+        if isinstance(draft_payload, dict):
+            draft = OCRRecordDraft.model_validate(draft_payload)
+            _render_ocr_review(draft)
+
+
+def _handle_ocr_request(camera: object, uploads: object) -> None:
+    images: list[OCRImage] = []
+    if camera is not None:
+        camera_file = cast(UploadedFileLike, camera)
+        images.append(
+            OCRImage(
+                name=getattr(camera_file, "name", "camera.jpg"),
+                data=camera_file.getvalue(),
+                mime_type=infer_mime_type(getattr(camera_file, "name", "camera.jpg")),
+            )
+        )
+    if isinstance(uploads, list):
+        for upload in uploads:
+            file = cast(UploadedFileLike, upload)
+            name = getattr(file, "name", "upload.jpg")
+            images.append(
+                OCRImage(name=name, data=file.getvalue(), mime_type=infer_mime_type(name))
+            )
+    if not images:
+        st.warning("请先拍照或上传至少一张图片。")
+        return
+    try:
+        config = load_config().ocr
+        manager = OCRRuntimeManager(config)
+        with st.spinner("正在启动本地 OCR 服务并识别照片…"):
+            manager.start()
+            service = OCRService(manager.client())
+            draft, raw_response, raw_content = service.recognize(images)
+        st.session_state["ocr_draft"] = draft.model_dump(mode="json")
+        st.session_state["ocr_raw_response"] = raw_response
+        st.session_state["ocr_raw_content"] = raw_content
+        st.session_state["ocr_images"] = [
+            {
+                "name": image.name,
+                "mime_type": image.mime_type,
+                "data": image.data,
+            }
+            for image in images
+        ]
+        st.success(f"已识别 {len(images)} 张照片；请逐字段核对。")
+    except (ConfigError, OCRRuntimeError, OCRServiceError, ValueError) as error:
+        st.error(str(error))
+
+
+def _render_ocr_review(draft: OCRRecordDraft) -> None:
+    st.subheader("OCR 草稿复核")
+    if draft.warnings:
+        for warning in draft.warnings:
+            st.warning(warning)
+    rows: list[dict[str, str]] = []
+    for name, field in draft.scalar_fields().items():
+        reviewed = st.checkbox(
+            f"已核对：{name}",
+            value=field.status == "reviewed",
+            key=f"ocr_review_{name}",
+        )
+        rows.append(
+            {
+                "field": name,
+                "value": field.display_value(),
+                "source_text": field.source_text or "",
+                "status": "reviewed" if reviewed else "needs_review",
+            }
+        )
+    if draft.starting_materials:
+        st.markdown("**Starting materials**")
+        for item in draft.starting_materials:
+            st.write(f"{item.as_form_line()}  ·  {item.source_text or '未提供原文片段'}")
+    if draft.reagents:
+        st.markdown("**Reagents**")
+        for item in draft.reagents:
+            st.write(f"{item.as_form_line()}  ·  {item.source_text or '未提供原文片段'}")
+    st.dataframe(rows, hide_index=True, width="stretch")
+    if draft.raw_text:
+        with st.expander("查看原始 OCR 文本"):
+            st.text(draft.raw_text)
+    if draft.unmapped_text:
+        st.info("未映射内容：" + "；".join(draft.unmapped_text))
+    if st.button("填入实验记录表单", key="ocr_apply", width="stretch"):
+        reviewed_draft = _draft_with_review_states(draft)
+        st.session_state["ocr_draft"] = reviewed_draft.model_dump(mode="json")
+        _apply_ocr_draft(reviewed_draft)
+        st.rerun()
+
+
+def _draft_with_review_states(draft: OCRRecordDraft) -> OCRRecordDraft:
+    payload = draft.model_dump(mode="json")
+    for name in draft.scalar_fields():
+        field_payload = payload.get(name)
+        if isinstance(field_payload, dict):
+            field_payload["status"] = (
+                "reviewed" if st.session_state.get(f"ocr_review_{name}", False) else "needs_review"
+            )
+    return OCRRecordDraft.model_validate(payload)
+
+
+def _apply_ocr_draft(draft: OCRRecordDraft) -> None:
+    for key, value in draft.form_values().items():
+        if value:
+            st.session_state[key] = value
+    st.session_state["ocr_applied"] = True
 
 def _render_record_polish_section(markdown: str, language: Language) -> None:
     st.divider()
@@ -219,6 +379,8 @@ def _handle_record_generate(
         if record.smiles:
             st.session_state["compound_smiles"] = record.smiles
         st.session_state["record_markdown"] = markdown
+        st.session_state["record_yaml"] = render_record_yaml(record)
+        st.session_state["record_payload"] = record.model_dump(mode="json", by_alias=True)
         st.success("实验记录 Markdown 已生成。")
     except (RecordInputError, ValueError) as error:
         st.error(str(error))

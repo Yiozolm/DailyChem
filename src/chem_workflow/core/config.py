@@ -10,13 +10,30 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 CONFIG_FILENAME = ".chemwf.toml"
 
 
 class ConfigError(ValueError):
     """配置文件解析或校验失败时抛出。错误信息会展示给用户，应包含可操作建议。"""
+
+
+class OCRConfig(BaseModel):
+    """Local GLM-OCR/vLLM runtime defaults."""
+
+    enabled: bool = True
+    wsl_distribution: str = "Ubuntu-24.04"
+    model_id: str = "zai-org/GLM-OCR"
+    model_revision: str | None = None
+    model_dir: str = "~/models/GLM-OCR"
+    vllm_env_dir: str = "~/dailychem-ocr/.venv"
+    vllm_log_path: str = "~/dailychem-ocr/vllm.log"
+    host: str = "127.0.0.1"
+    port: int = 8000
+    startup_timeout_seconds: float = 300.0
+    request_timeout_seconds: float = 180.0
+    max_output_tokens: int = 4096
 
 
 class ChemwfConfig(BaseModel):
@@ -30,6 +47,7 @@ class ChemwfConfig(BaseModel):
     db_path: str = "data/chem_workflow.sqlite"
     llm_model: str | None = None
     project_dir: str = "."
+    ocr: OCRConfig = Field(default_factory=OCRConfig)
 
 
 CONFIG_TEMPLATE = """\
@@ -52,6 +70,22 @@ db_path = "data/chem_workflow.sqlite"
 
 # 项目归档根目录
 project_dir = "."
+
+[ocr]
+# 本地 WSL2 + vLLM + GLM-OCR 设置
+enabled = true
+wsl_distribution = "Ubuntu-24.04"
+model_id = "zai-org/GLM-OCR"
+# 首次部署后请固定为已验证的模型 commit/tag；留空时使用模型默认 revision。
+# model_revision = "<tested-revision>"
+model_dir = "~/models/GLM-OCR"
+vllm_env_dir = "~/dailychem-ocr/.venv"
+vllm_log_path = "~/dailychem-ocr/vllm.log"
+host = "127.0.0.1"
+port = 8000
+startup_timeout_seconds = 300.0
+request_timeout_seconds = 180.0
+max_output_tokens = 4096
 """
 
 

@@ -5,6 +5,7 @@ from chem_workflow.core.config import (
     CONFIG_TEMPLATE,
     ChemwfConfig,
     ConfigError,
+    OCRConfig,
     find_config_path,
     load_config,
 )
@@ -15,6 +16,7 @@ __all__ = [
     "CONFIG_TEMPLATE",
     "ChemwfConfig",
     "ConfigError",
+    "OCRConfig",
     "config_app",
     "config_init",
     "config_show",

@@ -29,6 +29,7 @@ STANDARD_DIRS = (
     "ir/raw",
     "records",
     "reports",
+    "ocr/images",
 )
 
 

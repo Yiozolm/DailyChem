@@ -76,6 +76,28 @@ prompt 和后处理都禁止新增表征数值；输出恒为 draft 且带 warni
 运行 `uv run chemwf config init` 在当前目录生成 `.chemwf.toml`，编辑后图形界面默认值就会跟着变。
 `uv run chemwf config show` 查看当前生效配置。
 
+## 本地照片 OCR
+
+**Q: 第一次使用照片 OCR 需要做什么？**
+
+Windows 用户以管理员身份运行 `deploy/windows/install_ocr.ps1`。安装器会检查 NVIDIA 驱动和虚拟化，
+安装 WSL2/Ubuntu、Python/vLLM 环境并下载 GLM-OCR。若系统要求重启，重启后再次运行同一个脚本即可继续。
+
+**Q: OCR 会把照片上传到云端吗？**
+
+不会。照片通过本机 HTTP 接口发送给 WSL2 内的 vLLM，默认只监听本机地址。原始图片和 OCR JSON 只有在项目归档时
+显式保留，默认不会上传或写入远程服务。
+
+**Q: 为什么 OCR 结果必须人工核对？**
+
+手写数字、单位和化学式容易被识别错。工具会保留原文片段并把结果标记为 draft/`needs_review`，不会自动修正或补写
+照片中没有的数据。
+
+**Q: 如何诊断 WSL 或模型服务？**
+
+运行 `uv run chemwf ocr doctor` 检查前置条件，`uv run chemwf ocr status` 查看服务状态，必要时运行
+`deploy/windows/check_ocr.ps1` 查看 Windows、NVIDIA 和 WSL 信息。
+
 ## 范围
 
 **Q: 能不能直接 AI 自动解谱 / 从谱图图片识别？**

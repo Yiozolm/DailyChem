@@ -1,0 +1,13 @@
+{
+  "distribution": "Ubuntu-24.04",
+  "model_id": "zai-org/GLM-OCR",
+  "model_url": "https://huggingface.co/zai-org/GLM-OCR",
+  "model_revision": "main",
+  "python_version": "3.12",
+  "vllm_version": "0.31.0",
+  "torch_version": "auto",
+  "port": 8000,
+  "model_dir": "~/models/GLM-OCR",
+  "venv_dir": "~/dailychem-ocr/.venv",
+  "log_path": "~/dailychem-ocr/vllm.log"
+}
