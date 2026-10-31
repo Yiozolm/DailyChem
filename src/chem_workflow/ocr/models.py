@@ -48,6 +48,9 @@ class OCRRecordDraft(BaseModel):
     smiles: OCRField = Field(default_factory=OCRField)
     starting_materials: list[OCRMaterial] = Field(default_factory=list)
     reagents: list[OCRMaterial] = Field(default_factory=list)
+    # Reaction setup/addition notes that do not fit into the scalar condition fields.
+    # Workup and purification remain separate so the generated record can format them.
+    procedure: OCRField = Field(default_factory=OCRField)
     solvent: OCRField = Field(default_factory=OCRField)
     temperature: OCRField = Field(default_factory=OCRField)
     time: OCRField = Field(default_factory=OCRField)
@@ -75,6 +78,7 @@ class OCRRecordDraft(BaseModel):
                 "compound_id",
                 "product_name",
                 "smiles",
+                "procedure",
                 "solvent",
                 "temperature",
                 "time",
@@ -98,6 +102,7 @@ class OCRRecordDraft(BaseModel):
             "compound_id": self.compound_id.display_value(),
             "product_name": self.product_name.display_value(),
             "compound_smiles": self.smiles.display_value(),
+            "procedure": self.procedure.display_value(),
             "starting_materials": "\n".join(
                 line for line in (item.as_form_line() for item in self.starting_materials) if line
             ),

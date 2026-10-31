@@ -23,6 +23,8 @@ class ReactionInfo(BaseModel):
 
     starting_materials: list[Material] = Field(default_factory=list)
     reagents: list[Material] = Field(default_factory=list)
+    # Verbatim reaction setup/addition notes from a record or OCR draft.
+    procedure: str | None = None
     solvent: str | None = None
     temperature: str | None = None
     time: str | None = None

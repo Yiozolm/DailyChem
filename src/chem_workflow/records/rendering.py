@@ -103,7 +103,9 @@ def _english_procedure_paragraph(record: ReactionRecord) -> str:
     starting_materials = _join_materials(reaction.starting_materials, language="en")
     reagents = _join_materials(reaction.reagents, language="en")
 
-    if starting_materials and reagents:
+    if reaction.procedure:
+        sentences.append(reaction.procedure.strip())
+    elif starting_materials and reagents:
         solvent = f" in {reaction.solvent}" if reaction.solvent else ""
         sentences.append(f"To a solution of {starting_materials}{solvent} was added {reagents}.")
     elif starting_materials:
@@ -112,9 +114,10 @@ def _english_procedure_paragraph(record: ReactionRecord) -> str:
     elif reagents:
         sentences.append(f"The reaction was set up with {reagents}.")
 
-    condition = _english_condition(reaction.temperature, reaction.time)
-    if condition:
-        sentences.append(f"The reaction mixture was stirred {condition}.")
+    if not reaction.procedure:
+        condition = _english_condition(reaction.temperature, reaction.time)
+        if condition:
+            sentences.append(f"The reaction mixture was stirred {condition}.")
     if record.workup:
         sentences.append(f"The mixture was {record.workup}.")
 
@@ -133,7 +136,9 @@ def _chinese_procedure_paragraph(record: ReactionRecord) -> str:
     starting_materials = _join_materials(reaction.starting_materials, language="zh")
     reagents = _join_materials(reaction.reagents, language="zh")
 
-    if starting_materials and reagents:
+    if reaction.procedure:
+        sentences.append(reaction.procedure.strip())
+    elif starting_materials and reagents:
         solvent = f"溶于{reaction.solvent}" if reaction.solvent else ""
         sentences.append(f"将{starting_materials}{solvent}，加入{reagents}。")
     elif starting_materials:
@@ -142,9 +147,10 @@ def _chinese_procedure_paragraph(record: ReactionRecord) -> str:
     elif reagents:
         sentences.append(f"反应中使用{reagents}。")
 
-    condition = _chinese_condition(reaction.temperature, reaction.time)
-    if condition:
-        sentences.append(f"反应液{condition}。")
+    if not reaction.procedure:
+        condition = _chinese_condition(reaction.temperature, reaction.time)
+        if condition:
+            sentences.append(f"反应液{condition}。")
     if record.workup:
         sentences.append(f"反应混合物经{record.workup}。")
 

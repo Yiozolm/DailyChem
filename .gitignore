@@ -12,6 +12,7 @@ dist/
 .venv/
 .python-version
 uv.lock
+.uv-cache
 
 # Test / lint caches
 .pytest_cache/

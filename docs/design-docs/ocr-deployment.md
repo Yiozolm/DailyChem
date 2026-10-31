@@ -46,6 +46,9 @@ uv run chemwf ocr start
 uv run chemwf ocr stop
 ```
 
+如果手动启动 vLLM 使用了不同端口（例如 8080），请在项目根目录的 `.chemwf.toml` 中设置
+`[ocr] port = 8080`。DailyChem 会读取 `/v1/models`，自动使用服务实际暴露的模型别名。
+
 ## 故障排查
 
 - `找不到 wsl.exe`：先在 Windows 功能中启用 WSL，并重启后重新执行安装脚本。

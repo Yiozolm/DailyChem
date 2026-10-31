@@ -69,6 +69,22 @@ def test_render_english_record_contains_procedure_and_characterization() -> None
     assert "HRMS (ESI)" in markdown
 
 
+def test_render_record_uses_verbatim_reaction_procedure_when_provided() -> None:
+    record = ReactionRecord(
+        compound_id="C007",
+        reaction=ReactionInfo(
+            procedure="The mixture was stirred, and MeI was added dropwise.",
+            temperature="60 °C",
+            time="2 h",
+        ),
+    )
+
+    markdown = render_experiment_record(record, language="en")
+
+    assert "The mixture was stirred, and MeI was added dropwise." in markdown
+    assert "The reaction mixture was stirred at 60 °C for 2 h." not in markdown
+
+
 def test_render_chinese_record_handles_missing_optional_fields() -> None:
     record = ReactionRecord(
         compound_id="C003",

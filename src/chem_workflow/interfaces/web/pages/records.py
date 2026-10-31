@@ -70,6 +70,13 @@ def _experiment_record_page() -> None:
                 "benzoic acid | 1.0 mmol\nethanol | 5 mL",
                 height=110,
             )
+            procedure = _text_area(
+                "Procedure details",
+                "procedure",
+                "",
+                height=120,
+                help="保留反应设置、滴加、TLC 或颜色观察等原始步骤；OCR 结果会填入这里。",
+            )
             solvent = _text_input("Solvent", "solvent", "ethanol")
             temperature = _text_input("Temperature", "temperature", "room temperature")
             workup = _text_area(
@@ -118,6 +125,7 @@ def _experiment_record_page() -> None:
             smiles=smiles,
             starting_materials=starting_materials,
             reagents=reagents,
+            procedure=procedure,
             solvent=solvent,
             temperature=temperature,
             reaction_time=reaction_time,
@@ -328,6 +336,7 @@ def _handle_record_generate(
     smiles: str,
     starting_materials: str,
     reagents: str,
+    procedure: str = "",
     solvent: str,
     temperature: str,
     reaction_time: str,
@@ -353,6 +362,7 @@ def _handle_record_generate(
             reaction=ReactionInfo(
                 starting_materials=parse_material_lines(starting_materials),
                 reagents=parse_material_lines(reagents),
+                procedure=optional_text(procedure),
                 solvent=optional_text(solvent),
                 temperature=optional_text(temperature),
                 time=optional_text(reaction_time),

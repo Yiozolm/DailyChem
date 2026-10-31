@@ -25,6 +25,7 @@ class OCRRuntimeManager:
     config: OCRConfig
     process: subprocess.Popen[str] | None = None
     active_host: str | None = None
+    active_model: str | None = None
 
     @property
     def endpoint(self) -> str:
@@ -33,7 +34,7 @@ class OCRRuntimeManager:
     def client(self) -> GLMOCRClient:
         return GLMOCRClient(
             base_url=self.endpoint,
-            model=self.config.model_id,
+            model=self.active_model or self.config.model_id,
             timeout_seconds=self.config.request_timeout_seconds,
             max_output_tokens=self.config.max_output_tokens,
         )
@@ -53,6 +54,11 @@ class OCRRuntimeManager:
                 last_error = error
                 continue
             self.active_host = host
+            self.active_model = (
+                self.config.model_id
+                if self.config.model_id in models
+                else (models[0] if models else None)
+            )
             return models
         raise last_error or OCRClientError("本地 OCR 服务不可用。")
 
@@ -98,11 +104,12 @@ class OCRRuntimeManager:
                 model=self.config.model_id,
                 details=[str(error)],
             )
+        selected_model = self.active_model or (models[0] if models else self.config.model_id)
         return OCRServiceStatus(
             state="ready",
             message="本地 OCR 服务已就绪。",
             endpoint=self.endpoint,
-            model=models[0] if models else self.config.model_id,
+            model=selected_model,
         )
 
     def doctor(self) -> list[str]:
