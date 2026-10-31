@@ -55,6 +55,17 @@ uv run chemwf ocr stop
 - `CUDA unavailable in WSL`：更新 NVIDIA 驱动，确认 `nvidia-smi` 能在 Windows 工作，再运行
   `wsl --update`。
 - 模型服务启动超时：查看 WSL 的 `~/dailychem-ocr/vllm.log`，确认模型已经下载且显存足够。
-- OCR 返回非法 JSON：保留原始响应，先检查模型 revision 和 vLLM 版本是否与 manifest 一致。
+- 某张照片识别失败或输出达到长度上限：其他照片的结果仍会保留，并在草稿中给出警告；查看
+  `raw_ocr.json` 中对应页的原始响应。
+
+## 识别流程
+
+每张照片单独发送 GLM-OCR 原生 prompt `Text Recognition:`，只要求纯文本转录。字段映射在
+`src/chem_workflow/ocr/transcript.py` 中用确定性规则完成：解析试剂表（空格分隔或 Markdown 表格）、
+按句子拆分 procedure / workup / purification / 产率。`ocr/stoichiometry.py` 再检查 n = m/M、
+V = m/d、当量和产率，只给警告，不修改数值。
+
+不要让 GLM-OCR 直接输出大型 JSON：在示例笔记上这会导致字段错位，并在部分照片上出现重复输出直到
+`max_tokens`，整页丢失。
 
 照片、原始 OCR 响应和结构化草稿只会在用户勾选项目归档选项时写入 compound 的 `ocr/` 目录。

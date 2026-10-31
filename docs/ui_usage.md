@@ -86,6 +86,8 @@ uv run streamlit run app.py
 
 OCR 结果会显示字段值、照片原文片段和 `needs_review` 状态。逐字段核对后点击 **填入实验记录表单**，再像手动输入一样修改字段并生成记录。OCR 会把反应设置、滴加、TLC/颜色观察等步骤放入 `Procedure details`，并把淬灭、萃取、洗涤、干燥和柱层析分别放入对应字段。OCR 不会自动补全照片中没有的数字或单位；结构图底物无法命名时会保留照片中的标签（例如 `compound I`）并提示人工核对。
 
+照片中的试剂表（Compound / M / eq / n / m / V / d）会单独显示，并自动做计量校验：n = m/M、V = m/d、当量比和产率。手写 µ 常被识别成 m（例如 187 µL 被读成 187 mL），这类相差 1000 倍的数值会以黄色警告提示，但不会自动修改，请对照照片改正。若表单中已填写产物 SMILES，还会按产物分子量复核产率。
+
 生成结果可以下载 Markdown 和 YAML。项目归档时可选保存原始图片、`raw_ocr.json` 和 `structured_draft.json`，用于后续追溯。
 
 填写反应条件、workup、purification、yield 和 characterization 后，点击

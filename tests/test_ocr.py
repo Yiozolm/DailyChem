@@ -11,7 +11,6 @@ from chem_workflow.ocr import (
     OCRImage,
     OCRRecordDraft,
     OCRRuntimeManager,
-    OCRService,
     parse_ocr_content,
 )
 
@@ -90,14 +89,6 @@ def test_parse_preserves_reaction_steps_and_repairs_material_roles() -> None:
     assert any("重新分类" in warning for warning in draft.warnings)
 
 
-def test_prompt_explains_substrate_reagent_roles_and_procedure() -> None:
-    from chem_workflow.ocr.service import OCR_PROMPT
-
-    assert "不要把 K2CO3" in OCR_PROMPT
-    assert "procedure" in OCR_PROMPT
-    assert "workup" in OCR_PROMPT
-
-
 def test_labelled_substrate_is_not_left_in_reagents() -> None:
     draft = parse_ocr_content(
         json.dumps(
@@ -147,47 +138,6 @@ def test_procedure_falls_back_to_action_lines_in_raw_text() -> None:
 
     assert draft.procedure.value == "15:36 Add MeI dropwise to the mixture."
     assert any("raw_text" in warning for warning in draft.warnings)
-
-
-def test_service_uses_transcription_pass_when_structured_output_is_incomplete() -> None:
-    class FakeClient:
-        def __init__(self) -> None:
-            self.prompts: list[str] = []
-            self.responses = [
-                json.dumps(
-                    {
-                        "starting_materials": ["K2CO3"],
-                        "procedure": "Add MeI dropwise.",
-                    }
-                ),
-                json.dumps(
-                    {
-                        "raw_text": (
-                            "15:36 Add MeI dropwise.\n"
-                            "Quench with water and extract with EtOAc.\n"
-                            "Column: 30% EtOAc in hexane.\n"
-                            "Yield: 10 mg (20%)."
-                        )
-                    }
-                ),
-            ]
-
-        def recognize(self, images, prompt):  # noqa: ANN001
-            self.prompts.append(prompt)
-            return {"content": self.responses.pop(0)}
-
-        def extract_content(self, response):  # noqa: ANN001
-            return response["content"]
-
-    client = FakeClient()
-    draft, raw_response, _ = OCRService(client).recognize([OCRImage("page.jpg", b"abc")])
-
-    assert len(client.prompts) == 2
-    assert draft.workup.value == "Quench with water and extract with EtOAc."
-    assert draft.purification.value == "Column: 30% EtOAc in hexane."
-    assert draft.yield_mass.value == "10 mg"
-    assert draft.yield_percent.value == "20%"
-    assert set(raw_response) == {"structured", "transcription"}
 
 
 def test_runtime_client_uses_exposed_model_alias() -> None:

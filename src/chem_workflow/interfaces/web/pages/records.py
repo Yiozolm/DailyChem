@@ -12,6 +12,7 @@ from chem_workflow.ai.schemas import (
     LLMServiceError,
 )
 from chem_workflow.ai.workflows import polish_record
+from chem_workflow.compounds.structure import StructureInputError, mol_info, parse_smiles
 from chem_workflow.core.config import ConfigError, load_config
 from chem_workflow.interfaces.web.components.common import (
     _downloadable_code,
@@ -35,6 +36,7 @@ from chem_workflow.ocr import (
     OCRRuntimeManager,
     OCRService,
     OCRServiceError,
+    check_yield,
     infer_mime_type,
 )
 from chem_workflow.records import (
@@ -266,6 +268,14 @@ def _render_ocr_review(draft: OCRRecordDraft) -> None:
                 "status": "reviewed" if reviewed else "needs_review",
             }
         )
+    if draft.material_table:
+        st.markdown("**试剂表（按照片原文解析）**")
+        st.dataframe(
+            [row.model_dump(exclude={"source_text"}) for row in draft.material_table],
+            hide_index=True,
+            width="stretch",
+        )
+    _render_ocr_yield_check(draft)
     if draft.starting_materials:
         st.markdown("**Starting materials**")
         for item in draft.starting_materials:
@@ -285,6 +295,27 @@ def _render_ocr_review(draft: OCRRecordDraft) -> None:
         st.session_state["ocr_draft"] = reviewed_draft.model_dump(mode="json")
         _apply_ocr_draft(reviewed_draft)
         st.rerun()
+
+
+def _render_ocr_yield_check(draft: OCRRecordDraft) -> None:
+    """Re-check the yield with the product SMILES once the user has entered it."""
+    smiles = str(st.session_state.get("compound_smiles") or "").strip()
+    if not smiles or not draft.material_table or not draft.yield_mass.value:
+        return
+    try:
+        product_mw = float(cast(float, mol_info(parse_smiles(smiles))["mol_weight"]))
+    except StructureInputError:
+        return
+    messages = check_yield(
+        draft.material_table,
+        draft.yield_mass.value,
+        draft.yield_percent.value,
+        product_mw=product_mw,
+    )
+    if not messages:
+        st.success(f"产率与产物分子量 {product_mw:.2f} g/mol 一致。")
+    for message in messages:
+        st.warning(message)
 
 
 def _draft_with_review_states(draft: OCRRecordDraft) -> OCRRecordDraft:

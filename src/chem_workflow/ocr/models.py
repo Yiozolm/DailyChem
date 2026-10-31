@@ -39,6 +39,20 @@ class OCRMaterial(BaseModel):
         return name or amount
 
 
+class OCRTableRow(BaseModel):
+    """One row of the handwritten reagent table, kept as transcribed text."""
+
+    name: str
+    molar_mass: str | None = None
+    equivalents: str | None = None
+    amount: str | None = None
+    mass: str | None = None
+    volume: str | None = None
+    density: str | None = None
+    note: str | None = None
+    source_text: str | None = None
+
+
 class OCRRecordDraft(BaseModel):
     """Structured, review-required output from GLM-OCR."""
 
@@ -65,6 +79,8 @@ class OCRRecordDraft(BaseModel):
     ms: OCRField = Field(default_factory=OCRField)
     ir: OCRField = Field(default_factory=OCRField)
     uv: OCRField = Field(default_factory=OCRField)
+    # Parsed reagent table used for stoichiometry checks and review display.
+    material_table: list[OCRTableRow] = Field(default_factory=list)
     raw_text: str = ""
     unmapped_text: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
@@ -142,5 +158,6 @@ __all__ = [
     "OCRMaterial",
     "OCRRecordDraft",
     "OCRServiceStatus",
+    "OCRTableRow",
     "ReviewStatus",
 ]

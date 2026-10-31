@@ -1,4 +1,4 @@
-"""Prompting, parsing, and conservative mapping for GLM-OCR output."""
+"""Local GLM-OCR transcription service and JSON draft parsing."""
 
 from __future__ import annotations
 
@@ -8,75 +8,13 @@ from typing import Any
 
 from chem_workflow.ocr.client import GLMOCRClient, OCRClientError, OCRImage
 from chem_workflow.ocr.models import OCRRecordDraft
-from chem_workflow.ocr.normalization import (
-    _is_generic_purification,
-    _is_generic_workup,
-    _normalize_payload,
-)
+from chem_workflow.ocr.normalization import _normalize_payload
+from chem_workflow.ocr.transcript import draft_from_transcript
 
-OCR_PROMPT = """你是化学实验记录 OCR 助手。请阅读所有图片中的实验记录，只提取图片中明确出现的内容。
-
-严格要求：
-1. 只输出一个 JSON object，不要 Markdown 代码围栏、解释或额外文字。
-2. 不要推测、补全或纠正任何数字、单位、化学式、产率或实验条件。
-3. 无法确认的值使用 null，并把原因写入 warnings。
-4. 每个字段尽量提供 source_text，引用照片中的原文片段。
-5. 先按反应式箭头和实验表格的角色分类，再填写 starting_materials 和 reagents。
-   starting_materials 只放被转化的底物（通常是反应箭头左侧或表格中标为 Compound/底物的有机项）；
-   如果反应式左侧有 I、II 等多个有机底物，全部列入 starting_materials；
-   reagents 放碱、酸、催化剂、活化剂和其他加入的试剂。溶剂（例如 DMF）只放入 solvent。
-   不要把 K2CO3、Na2CO3、Cs2CO3、MeI、DBU、CuI、AgNO3、NBS、DMF、MeCN、EtOAc、hexane 或水
-   当作 starting material。
-   若底物只有结构图或标签 I，保留为“compound I”或“I”，不要猜它的化学名称；若角色无法确认，
-   放入 unmapped_text 并加入 warning，而不是擅自归类。
-   例如表格或步骤同时出现 I、K2CO3、MeI 和 DMF 时，应分别放入 starting_materials、reagents、
-   reagents 和 solvent；I 的结构名称不可见时仍保留为 compound I。
-6. procedure 记录反应设置和按时间顺序的加料、滴加、TLC/颜色观察等操作；workup 只记录淬灭、萃取、
-   洗涤、干燥等后处理；purification 只记录柱层析/重结晶等纯化。
-   procedure 要引用照片中的完整原文片段，不能只写“按常规操作”。raw_text 保留按图片顺序整理的全部
-   OCR 原文；无法映射到字段的内容放入
-   unmapped_text。
-
-JSON 结构：
-{
-  "compound_id": {"value": null, "source_text": null},
-  "product_name": {"value": null, "source_text": null},
-  "smiles": {"value": null, "source_text": null},
-  "procedure": {"value": null, "source_text": null},
-  "starting_materials": [{
-    "name": {"value": null, "source_text": null},
-    "amount": {"value": null, "source_text": null},
-    "source_text": null
-  }],
-  "reagents": [],
-  "solvent": {"value": null, "source_text": null},
-  "temperature": {"value": null, "source_text": null},
-  "time": {"value": null, "source_text": null},
-  "workup": {"value": null, "source_text": null},
-  "purification": {"value": null, "source_text": null},
-  "appearance": {"value": null, "source_text": null},
-  "yield_mass": {"value": null, "source_text": null},
-  "yield_percent": {"value": null, "source_text": null},
-  "h1_nmr": {"value": null, "source_text": null},
-  "c13_nmr": {"value": null, "source_text": null},
-  "hrms": {"value": null, "source_text": null},
-  "ms": {"value": null, "source_text": null},
-  "ir": {"value": null, "source_text": null},
-  "uv": {"value": null, "source_text": null},
-  "raw_text": "",
-  "unmapped_text": [],
-  "warnings": []
-}
-"""
-
-OCR_TRANSCRIPTION_PROMPT = """Read every visible handwritten line in these chemistry notebook images
-in reading order.
-
-Return one JSON object only: {"raw_text": "full transcription of all visible text", "warnings": []}.
-Do not summarize or omit timestamped lines, TLC observations, reagent-table rows, yield, or column
-details. Preserve uncertain text with [?] instead of inventing it. Keep the original order and
-units.
-"""
+# GLM-OCR's native task prompt. Asking this small model to fill a large JSON schema caused
+# wrong field mapping and, on some pages, a repetition loop until max_tokens; mapping is done
+# in code instead (see ``transcript.py``).
+OCR_TEXT_PROMPT = "Text Recognition:"
 
 
 class OCRServiceError(RuntimeError):
@@ -84,49 +22,37 @@ class OCRServiceError(RuntimeError):
 
 
 class OCRService:
-    """Use a local GLM-OCR client and validate its result into a draft."""
+    """Transcribe each photo with local GLM-OCR and build a review-required draft."""
 
     def __init__(self, client: GLMOCRClient) -> None:
         self.client = client
 
     def recognize(self, images: list[OCRImage]) -> tuple[OCRRecordDraft, dict[str, object], str]:
-        """Return structured draft, raw response, and raw model content."""
-        try:
-            raw_response = self.client.recognize(images, OCR_PROMPT)
-            content = self.client.extract_content(raw_response)
-        except OCRClientError as error:
-            raise OCRServiceError(str(error)) from error
-        draft = parse_ocr_content(content, page_count=len(images))
-        if not _needs_transcription_pass(draft):
-            return draft, raw_response, content
-
-        try:
-            transcription_response = self.client.recognize(images, OCR_TRANSCRIPTION_PROMPT)
-            transcription_content = self.client.extract_content(transcription_response)
-        except OCRClientError as error:
-            draft = _append_warning(
-                draft,
-                f"逐行转录补充请求失败，保留首轮 OCR 草稿：{error}",
-            )
-            return draft, raw_response, content
-        try:
-            transcription = parse_ocr_content(transcription_content, page_count=len(images))
-        except OCRServiceError as error:
-            transcription = parse_ocr_content(
-                json.dumps({"raw_text": _strip_markdown_fence(transcription_content)}),
-                page_count=len(images),
-            )
-            draft = _append_warning(
-                draft,
-                f"逐行转录返回了非标准 JSON，已按原文保留：{error}",
-            )
-
-        merged = _merge_transcription(draft, transcription)
-        return (
-            merged,
-            {"structured": raw_response, "transcription": transcription_response},
-            content + "\n\n" + transcription_content,
-        )
+        """Return structured draft, raw per-page responses, and the joined transcript."""
+        if not images:
+            raise OCRServiceError("至少需要一张图片。")
+        pages: list[dict[str, object]] = []
+        texts: list[str] = []
+        warnings: list[str] = []
+        for index, image in enumerate(images, start=1):
+            try:
+                response = self.client.recognize([image], OCR_TEXT_PROMPT)
+                text = self.client.extract_content(response)
+            except OCRClientError as error:
+                warnings.append(f"第 {index} 张照片（{image.name}）识别失败：{error}")
+                pages.append({"image": image.name, "error": str(error)})
+                continue
+            if _finish_reason(response) == "length":
+                warnings.append(
+                    f"第 {index} 张照片的识别输出达到长度上限，可能被截断，请对照照片核对。"
+                )
+            pages.append({"image": image.name, "response": response})
+            texts.append(text)
+        if not texts:
+            raise OCRServiceError("所有照片都识别失败：" + "；".join(warnings))
+        content = "\n\n".join(texts)
+        draft = draft_from_transcript(content, page_count=len(images), warnings=warnings)
+        return draft, {"pages": pages}, content
 
 
 def parse_ocr_content(content: str, *, page_count: int = 1) -> OCRRecordDraft:
@@ -156,77 +82,16 @@ def _extract_json(content: str) -> dict[str, Any]:
     return payload
 
 
-
-
-def _strip_markdown_fence(content: str) -> str:
-    stripped = content.strip()
-    stripped = re.sub(r"^```(?:json|markdown)?\s*", "", stripped, flags=re.I)
-    return re.sub(r"\s*```$", "", stripped).strip()
-
-
-def _needs_transcription_pass(draft: OCRRecordDraft) -> bool:
-    """Use a focused second pass when the structured pass omitted visible text."""
-
-    return not draft.raw_text or not draft.workup.value or not draft.purification.value
-
-
-def _merge_transcription(primary: OCRRecordDraft, transcription: OCRRecordDraft) -> OCRRecordDraft:
-    """Merge full-page transcription into the role-aware first-pass draft."""
-
-    payload = primary.model_dump(mode="json")
-    if transcription.raw_text:
-        payload["raw_text"] = transcription.raw_text
-    for name in (
-        "procedure",
-        "workup",
-        "purification",
-        "temperature",
-        "time",
-        "solvent",
-        "yield_mass",
-        "yield_percent",
-        "appearance",
-    ):
-        first = getattr(primary, name)
-        second = getattr(transcription, name)
-        generic = (
-            name == "workup"
-            and first.value
-            and _is_generic_workup(str(first.value))
-        ) or (
-            name == "purification"
-            and first.value
-            and _is_generic_purification(str(first.value))
-        )
-        if (not first.value or generic) and second.value:
-            payload[name] = second.model_dump(mode="json")
-    if not primary.starting_materials and transcription.starting_materials:
-        payload["starting_materials"] = [
-            item.model_dump(mode="json") for item in transcription.starting_materials
-        ]
-    if not primary.reagents and transcription.reagents:
-        payload["reagents"] = [item.model_dump(mode="json") for item in transcription.reagents]
-    payload["warnings"] = _unique_strings(primary.warnings + transcription.warnings)
-    payload["unmapped_text"] = _unique_strings(primary.unmapped_text + transcription.unmapped_text)
-    return OCRRecordDraft.model_validate(payload)
-
-
-def _append_warning(draft: OCRRecordDraft, warning: str) -> OCRRecordDraft:
-    payload = draft.model_dump(mode="json")
-    payload["warnings"] = _unique_strings([*draft.warnings, warning])
-    return OCRRecordDraft.model_validate(payload)
-
-
-def _unique_strings(values: list[str]) -> list[str]:
-    return list(dict.fromkeys(value for value in values if value))
-
-
+def _finish_reason(response: dict[str, object]) -> object:
+    choices = response.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], dict):
+        return choices[0].get("finish_reason")
+    return None
 
 
 __all__ = [
     "OCRService",
     "OCRServiceError",
-    "OCR_PROMPT",
-    "OCR_TRANSCRIPTION_PROMPT",
+    "OCR_TEXT_PROMPT",
     "parse_ocr_content",
 ]

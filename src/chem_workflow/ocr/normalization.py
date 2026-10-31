@@ -7,7 +7,9 @@ import unicodedata
 from typing import Any
 
 
-def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _normalize_payload(
+    payload: dict[str, Any], *, recover_materials: bool = True
+) -> dict[str, Any]:
     # Some model prompts naturally produce {"record": {...}}; accept that wrapper.
     if isinstance(payload.get("record"), dict):
         payload = {**payload["record"], **{k: v for k, v in payload.items() if k != "record"}}
@@ -54,8 +56,10 @@ def _normalize_payload(payload: dict[str, Any]) -> dict[str, Any]:
     _repair_scalar_fields(normalized)
     _fill_procedure_from_raw_text(normalized)
     _repair_material_roles(normalized)
-    _ensure_labelled_materials(normalized)
-    _ensure_known_reagents(normalized)
+    # Text-based material recovery is only a fallback when no reagent table was parsed.
+    if recover_materials:
+        _ensure_labelled_materials(normalized)
+        _ensure_known_reagents(normalized)
     _fill_conditions_from_raw_text(normalized)
     _fill_workup_and_purification_from_raw_text(normalized)
     _repair_yield_fields(normalized)
@@ -596,5 +600,6 @@ def _string_list(value: Any) -> list[str]:
 __all__ = [
     "_is_generic_purification",
     "_is_generic_workup",
+    "_known_material_role",
     "_normalize_payload",
 ]
